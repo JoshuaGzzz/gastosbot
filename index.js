@@ -1,5 +1,6 @@
 const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder } = require('discord.js')
 const { createClient } = require('@supabase/supabase-js')
+const express = require('express')
 
 const BOT_TOKEN = process.env.BOT_TOKEN
 const CLIENT_ID = process.env.CLIENT_ID
@@ -7,6 +8,7 @@ const GUILD_ID = process.env.GUILD_ID
 const CHANNEL_ID = process.env.CHANNEL_ID
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_KEY
+const WEBHOOK_PORT = process.env.WEBHOOK_PORT || 3000
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
 
@@ -193,7 +195,6 @@ client.on('interactionCreate', async interaction => {
       hour: '2-digit', minute: '2-digit', second: '2-digit'
     })
 
-    // Get longest streak before this reset
     const longestMs = records?.length ? getLongestStreak(records, prevStartTime) : streakMs
     const wasRecord = streakMs >= longestMs
 
@@ -219,7 +220,6 @@ client.on('interactionCreate', async interaction => {
       .setFooter({ text: 'Timer has been reset. The suffering begins again.' })
       .setTimestamp()
 
-    // Post in the designated channel
     const channel = await client.channels.fetch(CHANNEL_ID)
     if (channel) await channel.send({ embeds: [embed] })
 
@@ -235,7 +235,6 @@ client.on('interactionCreate', async interaction => {
     const amount = interaction.options.getNumber('amount')
     const discordTag = interaction.options.getString('discord_tag') ?? interaction.user.tag
 
-    // Validate date format
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/
     if (!dateRegex.test(dateStr)) {
       return interaction.editReply('Invalid date format. Use YYYY-MM-DD (e.g. 2026-08-15)')
@@ -252,7 +251,6 @@ client.on('interactionCreate', async interaction => {
 
     await interaction.editReply(`✅ Bet placed! **${name}** bets ₱${amount.toLocaleString()} that Joseph breaks on **${dateStr}**.`)
 
-    // Also announce in channel
     const channel = await client.channels.fetch(CHANNEL_ID)
     if (channel) {
       await channel.send(`🎲 **${name}** placed a bet of ₱${amount.toLocaleString()} that Joseph breaks on **${dateStr}**!`)
@@ -269,9 +267,7 @@ client.on('interactionCreate', async interaction => {
     if (!bets || bets.length === 0) return interaction.editReply('No bets placed yet.')
 
     const now = Date.now()
-    const today = new Date().toISOString().split('T')[0]
 
-    // Find closest bet to today
     const closest = bets.reduce((prev, curr) => {
       const prevDiff = Math.abs(new Date(prev.bet_date).getTime() - now)
       const currDiff = Math.abs(new Date(curr.bet_date).getTime() - now)
@@ -300,6 +296,73 @@ client.on('interactionCreate', async interaction => {
 
     await interaction.editReply({ embeds: [embed] })
   }
+})
+
+// ── Webhook server (receives Supabase DB webhook when website resets) ─────────
+
+async function screamInChannel(record) {
+  try {
+    const { data: timerData } = await supabase.from('timer_state').select('start_time').eq('id', 1).single()
+    const { data: records } = await supabase.from('spending_records').select('*')
+
+    const prevStartTime = record.prev_start_time
+    const streakMs = prevStartTime
+      ? new Date(record.timestamp).getTime() - prevStartTime
+      : 0
+
+    const longestMs = records?.length && prevStartTime
+      ? getLongestStreak(records, prevStartTime)
+      : streakMs
+    const wasRecord = streakMs > 0 && streakMs >= longestMs
+
+    const category = record.category ?? 'Uncategorized'
+    const reason = record.reason ?? '???'
+
+    const embed = new EmbedBuilder()
+      .setTitle(wasRecord ? '🏆 HE BROKE HIS RECORD AND HIS WALLET (via website)' : '🚨 JOSEPH SPENT MONEY (via website)')
+      .setDescription('The website reset button has been pressed. He has fallen.')
+      .addFields(
+        { name: '📁 Category', value: category, inline: true },
+        { name: '⏱ Streak Was', value: streakMs > 0 ? formatStreakDuration(streakMs) : 'Unknown', inline: true },
+        { name: '💬 Reason', value: reason, inline: false },
+      )
+      .setColor(wasRecord ? 0xfbbf24 : 0xef4444)
+      .setFooter({ text: 'Timer has been reset. The suffering begins again.' })
+      .setTimestamp()
+
+    const channel = await client.channels.fetch(CHANNEL_ID)
+    if (channel) {
+      await channel.send({ content: '||@everyone||', embeds: [embed] })
+    }
+  } catch (err) {
+    console.error('Failed to scream in channel:', err)
+  }
+}
+
+const app = express()
+app.use(express.json())
+
+app.post('/webhook', async (req, res) => {
+  try {
+    const payload = req.body
+    // Supabase sends { type: 'INSERT', record: { ... }, ... }
+    if (payload.type === 'INSERT' && payload.table === 'spending_records') {
+      const record = payload.record
+      console.log('Website reset detected:', record)
+      res.status(200).json({ ok: true })
+      // Scream after responding so Supabase doesn't time out waiting
+      await screamInChannel(record)
+    } else {
+      res.status(200).json({ ok: true, ignored: true })
+    }
+  } catch (err) {
+    console.error('Webhook error:', err)
+    res.status(500).json({ error: 'Internal error' })
+  }
+})
+
+app.listen(WEBHOOK_PORT, () => {
+  console.log(`Webhook server listening on port ${WEBHOOK_PORT}`)
 })
 
 client.login(BOT_TOKEN)
