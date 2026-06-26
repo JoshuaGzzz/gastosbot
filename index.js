@@ -332,7 +332,7 @@ async function screamInChannel(record) {
 
     const channel = await client.channels.fetch(CHANNEL_ID)
     if (channel) {
-      await channel.send({ content: '||@everyone||', embeds: [embed] })
+      await channel.send({ content: '||@here||', embeds: [embed] })
     }
   } catch (err) {
     console.error('Failed to scream in channel:', err)
