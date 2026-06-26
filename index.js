@@ -118,6 +118,11 @@ const commands = [
   new SlashCommandBuilder()
     .setName('bets')
     .setDescription('Show the current betting leaderboard'),
+
+  new SlashCommandBuilder()
+    .setName('scream')
+    .setDescription('Manually announce the latest reset from the website'),
+
 ].map(c => c.toJSON())
 
 async function registerCommands() {
@@ -262,7 +267,6 @@ client.on('interactionCreate', async interaction => {
     await interaction.deferReply()
 
     const { data: bets } = await supabase.from('bets').select('*').order('bet_date', { ascending: true })
-    const { data: timerData } = await supabase.from('timer_state').select('start_time').eq('id', 1).single()
 
     if (!bets || bets.length === 0) return interaction.editReply('No bets placed yet.')
 
@@ -296,13 +300,30 @@ client.on('interactionCreate', async interaction => {
 
     await interaction.editReply({ embeds: [embed] })
   }
+
+  // ── /scream ─────────────────────────────────────────────────────────────────
+  if (interaction.commandName === 'scream') {
+    await interaction.deferReply({ ephemeral: true })
+
+    const { data: records } = await supabase
+      .from('spending_records')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (!records || records.length === 0) {
+      return interaction.editReply('No spending records found.')
+    }
+
+    const latest = records[0]
+    await screamInChannel(latest)
+    await interaction.editReply('✅ Screamed in channel.')
+  }
 })
 
 // ── Webhook server (receives Supabase DB webhook when website resets) ─────────
 
 async function screamInChannel(record) {
   try {
-    const { data: timerData } = await supabase.from('timer_state').select('start_time').eq('id', 1).single()
     const { data: records } = await supabase.from('spending_records').select('*')
 
     const prevStartTime = record.prev_start_time
@@ -332,7 +353,7 @@ async function screamInChannel(record) {
 
     const channel = await client.channels.fetch(CHANNEL_ID)
     if (channel) {
-      await channel.send({ content: '||@here||', embeds: [embed] })
+      await channel.send({ content: '@here', embeds: [embed] })
     }
   } catch (err) {
     console.error('Failed to scream in channel:', err)
@@ -345,12 +366,10 @@ app.use(express.json())
 app.post('/webhook', async (req, res) => {
   try {
     const payload = req.body
-    // Supabase sends { type: 'INSERT', record: { ... }, ... }
     if (payload.type === 'INSERT' && payload.table === 'spending_records') {
       const record = payload.record
       console.log('Website reset detected:', record)
       res.status(200).json({ ok: true })
-      // Scream after responding so Supabase doesn't time out waiting
       await screamInChannel(record)
     } else {
       res.status(200).json({ ok: true, ignored: true })
