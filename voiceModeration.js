@@ -11,6 +11,11 @@ const { DeepgramClient } = require('@deepgram/sdk')
 const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY
 const deepgram = DEEPGRAM_API_KEY ? new DeepgramClient({ apiKey: DEEPGRAM_API_KEY }) : null
 
+// Optional: force a specific language via Railway env var, e.g. DEEPGRAM_LANGUAGE=tl or =en
+// If unset, Deepgram auto-detects the dominant language per utterance — better for
+// mixed Tagalog/English (Taglish) speech than locking to one language.
+const DEEPGRAM_LANGUAGE = process.env.DEEPGRAM_LANGUAGE || null
+
 // guildId -> { connection, textChannel, buffering: Set<userId> }
 const activeSessions = new Map()
 
@@ -46,13 +51,20 @@ async function transcribePcm(pcmBuffer) {
   if (!deepgram) return ''
   if (pcmBuffer.length < 3200) return '' // skip near-silent blips (<~17ms of stereo 48k)
   try {
+    const requestBody = {
+      model: 'nova-3',
+      encoding: 'linear16',
+      smart_format: true,
+    }
+    if (DEEPGRAM_LANGUAGE) {
+      requestBody.language = DEEPGRAM_LANGUAGE
+    } else {
+      requestBody.detect_language = true
+    }
+
     const response = await deepgram.listen.v1.media.transcribeFile(
       pcmBuffer,
-      {
-        model: 'nova-3',
-        encoding: 'linear16',
-        smart_format: true,
-      },
+      requestBody,
       {
         // sample_rate/channels aren't part of this SDK version's typed request body —
         // they only get sent if passed as raw extra query params here.
