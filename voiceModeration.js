@@ -46,13 +46,22 @@ async function transcribePcm(pcmBuffer) {
   if (!deepgram) return ''
   if (pcmBuffer.length < 3200) return '' // skip near-silent blips (<~17ms of stereo 48k)
   try {
-    const response = await deepgram.listen.v1.media.transcribeFile(pcmBuffer, {
-      model: 'nova-3',
-      encoding: 'linear16',
-      sample_rate: 48000,
-      channels: 2,
-      smart_format: true,
-    })
+    const response = await deepgram.listen.v1.media.transcribeFile(
+      pcmBuffer,
+      {
+        model: 'nova-3',
+        encoding: 'linear16',
+        smart_format: true,
+      },
+      {
+        // sample_rate/channels aren't part of this SDK version's typed request body —
+        // they only get sent if passed as raw extra query params here.
+        queryParams: {
+          sample_rate: 48000,
+          channels: 2,
+        },
+      }
+    )
     return response?.results?.channels?.[0]?.alternatives?.[0]?.transcript ?? ''
   } catch (err) {
     console.error('[voice-mod] Deepgram transcription failed:', err.message || err)
