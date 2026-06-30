@@ -2,6 +2,7 @@ const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuild
 const { createClient } = require('@supabase/supabase-js')
 const express = require('express')
 const { startModeration, stopModeration, isModerating, getLeaderboard } = require('./voiceModeration')
+const { playJoinSound } = require('./joinSound')
 
 const BOT_TOKEN = process.env.BOT_TOKEN
 const CLIENT_ID = process.env.CLIENT_ID
@@ -158,6 +159,18 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBit
 client.once('ready', async () => {
   console.log(`Logged in as ${client.user.tag}`)
   await registerCommands()
+})
+
+client.on('voiceStateUpdate', async (oldState, newState) => {
+  if (newState.member?.user?.bot) return
+  if (oldState.channelId === newState.channelId) return
+  if (!newState.channelId) return
+
+  try {
+    await playJoinSound(newState.channel)
+  } catch (err) {
+    console.error('[join-sound] error:', err.message)
+  }
 })
 
 client.on('interactionCreate', async interaction => {
