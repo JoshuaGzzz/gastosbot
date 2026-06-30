@@ -6,10 +6,10 @@ const {
   entersState,
 } = require('@discordjs/voice')
 const prism = require('prism-media')
-const { createClient } = require('@deepgram/sdk')
+const { DeepgramClient } = require('@deepgram/sdk')
 
 const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY
-const deepgram = DEEPGRAM_API_KEY ? createClient(DEEPGRAM_API_KEY) : null
+const deepgram = DEEPGRAM_API_KEY ? new DeepgramClient({ apiKey: DEEPGRAM_API_KEY }) : null
 
 // guildId -> { connection, textChannel, buffering: Set<userId> }
 const activeSessions = new Map()
