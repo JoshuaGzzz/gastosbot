@@ -262,7 +262,10 @@ const onMatch = async (userId, transcript, hit) => {
     }
 
     const player = createAudioPlayer()
-    const resource = createAudioResource('./sounds/fahhhhhhhhhhhhhhh.mp3')
+    const resource = createAudioResource('./sounds/fahhhhhhhhhhhhhhh.mp3', {
+      inlineVolume: true
+    })
+    resource.volume.setVolumeLogarithmic(0.25)
     connection.subscribe(player)
     player.play(resource)
 
