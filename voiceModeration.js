@@ -261,12 +261,8 @@ const onMatch = async (userId, transcript, hit) => {
       )
     }
 
-    // Unmute, play sound, remute
-    const botMember = await guild.members.fetchMe()
-    await botMember.voice.setMute(false)
-
     const player = createAudioPlayer()
-    const resource = createAudioResource('./sounds/flagged.mp3') // your file here
+    const resource = createAudioResource('./sounds/fahhhhhhhhhhhhhhh.mp3')
     connection.subscribe(player)
     player.play(resource)
 
@@ -275,14 +271,11 @@ const onMatch = async (userId, transcript, hit) => {
       player.on('error', reject)
     })
 
-    await botMember.voice.setMute(true)
-    player.stop()
-
   } catch (err) {
     console.error('[voice-mod] failed to disconnect flagged user:', err.message || err)
   }
 }
-
+  
   connection.receiver.speaking.on('start', async userId => {
     if (session.buffering.has(userId)) return
 
