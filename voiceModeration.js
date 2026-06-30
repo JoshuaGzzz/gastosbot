@@ -11,9 +11,8 @@ const { DeepgramClient } = require('@deepgram/sdk')
 const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY
 const deepgram = DEEPGRAM_API_KEY ? new DeepgramClient({ apiKey: DEEPGRAM_API_KEY }) : null
 
-// Optional: force a specific language via Railway env var, e.g. DEEPGRAM_LANGUAGE=tl or =en
-// If unset, we restrict detection to English + Tagalog only (see openLiveConnection).
-const DEEPGRAM_LANGUAGE = process.env.DEEPGRAM_LANGUAGE || null
+// Which languages to transcribe in parallel is controlled by DEEPGRAM_LANGUAGES
+// below (defaults to English + Tagalog) — see STREAMING_LANGUAGES.
 
 // guildId -> { connection, textChannel, buffering: Set<userId> }
 const activeSessions = new Map()
@@ -60,7 +59,15 @@ function findHit(transcript) {
 // buffering a whole utterance and sending one HTTP call at the end. This is
 // the @deepgram/sdk v5 "listen.v1.connect" streaming API.
 
-async function openLiveConnection({ onTranscript, onError }) {
+// Languages to run in parallel — one streaming connection per language per
+// speaker. Override with DEEPGRAM_LANGUAGES (comma-separated) if you ever
+// want to change the pair without editing code.
+const STREAMING_LANGUAGES = (process.env.DEEPGRAM_LANGUAGES || 'en,tl')
+  .split(',')
+  .map(l => l.trim())
+  .filter(Boolean)
+
+async function openLiveConnection(language, { onTranscript, onError }) {
   if (!deepgram) return null
 
   const options = {
@@ -70,14 +77,7 @@ async function openLiveConnection({ onTranscript, onError }) {
     channels: 2,
     interim_results: 'true', // partial transcripts as words come in, not just at end-of-turn
     endpointing: 300,        // ms of silence before Deepgram finalizes an utterance
-  }
-
-  if (DEEPGRAM_LANGUAGE) {
-    options.language = DEEPGRAM_LANGUAGE
-  } else {
-    // Restrict detection to English + Tagalog only, instead of all ~35
-    // languages Deepgram can detect.
-    options.detect_language = ['en', 'tl']
+    language,
   }
 
   const connection = await deepgram.listen.v1.connect(options)
@@ -89,7 +89,7 @@ async function openLiveConnection({ onTranscript, onError }) {
   })
 
   connection.on('error', err => {
-    console.error('[voice-mod] Deepgram live error:', err?.message || err)
+    console.error(`[voice-mod] Deepgram live error (${language}):`, err?.message || err)
     onError?.(err)
   })
 
@@ -114,52 +114,62 @@ function listenToUser(voiceConnection, userId, onMatch, onDone) {
   const decoder = new prism.opus.Decoder({ rate: 48000, channels: 2, frameSize: 960 })
 
   let flagged = false
-  let liveTranscript = ''
-  let dgConnection = null
   let closed = false
+  const lastTranscriptByLang = {}
 
-  openLiveConnection({
-    onTranscript: async (transcript, isFinal) => {
-      liveTranscript = transcript
-      if (flagged) return // already handled this speaker's utterance
-      const hit = findHit(transcript)
-      if (hit) {
-        flagged = true
-        console.log(`[voice-mod] ${userId} flagged on ${isFinal ? 'final' : 'interim'} result: "${transcript}"`)
-        await onMatch(userId, transcript, hit)
-      }
-    },
-    onError: () => {
-      // Logged inside openLiveConnection.
-    },
+  // One Deepgram connection per language, all fed the same audio in parallel.
+  // dgConnections[i] corresponds to STREAMING_LANGUAGES[i].
+  const dgConnections = new Array(STREAMING_LANGUAGES.length).fill(null)
+
+  STREAMING_LANGUAGES.forEach((language, i) => {
+    openLiveConnection(language, {
+      onTranscript: async (transcript, isFinal) => {
+        lastTranscriptByLang[language] = transcript
+        if (flagged) return // some language connection already caught a hit
+        const hit = findHit(transcript)
+        if (hit) {
+          flagged = true
+          console.log(`[voice-mod] ${userId} flagged (${language}, ${isFinal ? 'final' : 'interim'}): "${transcript}"`)
+          await onMatch(userId, transcript, hit)
+        }
+      },
+      onError: () => {
+        // Logged inside openLiveConnection.
+      },
+    })
+      .then(connection => {
+        dgConnections[i] = connection
+        if (closed) {
+          try { connection.close() } catch (err) { /* already closed */ }
+        }
+      })
+      .catch(err => {
+        console.error(`[voice-mod] failed to open Deepgram connection (${language}):`, err.message || err)
+      })
   })
-    .then(connection => {
-      dgConnection = connection
-      if (closed) {
-        // Decoder already finished before the socket finished opening — close it now.
-        try { connection.close() } catch (err) { /* already closed */ }
-      }
-    })
-    .catch(err => {
-      console.error('[voice-mod] failed to open Deepgram connection:', err.message || err)
-      onDone()
-    })
 
   opusStream.pipe(decoder)
   decoder.on('data', chunk => {
-    if (dgConnection) dgConnection.sendMedia(chunk)
+    for (const connection of dgConnections) {
+      if (connection) connection.sendMedia(chunk)
+    }
   })
 
   const cleanup = () => {
     onDone()
-    if (liveTranscript && !flagged) {
-      console.log(`[voice-mod] ${userId}: "${liveTranscript}" (no match)`)
+    if (!flagged) {
+      const summary = STREAMING_LANGUAGES
+        .map(lang => lastTranscriptByLang[lang] && `${lang}: "${lastTranscriptByLang[lang]}"`)
+        .filter(Boolean)
+        .join(' | ')
+      if (summary) console.log(`[voice-mod] ${userId}: ${summary} (no match)`)
     }
     closed = true
-    if (dgConnection) {
+    for (const connection of dgConnections) {
+      if (!connection) continue
       try {
-        dgConnection.sendCloseStream({ type: 'CloseStream' })
-        dgConnection.close()
+        connection.sendCloseStream({ type: 'CloseStream' })
+        connection.close()
       } catch (err) { /* already closed */ }
     }
   }
