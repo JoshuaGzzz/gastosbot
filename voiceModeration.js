@@ -4,7 +4,7 @@ const {
   EndBehaviorType,
   VoiceConnectionStatus,
   entersState,
-  createAudioPlayer,      // add these
+  createAudioPlayer,
   createAudioResource,
   AudioPlayerStatus,
 } = require('@discordjs/voice')
@@ -15,12 +15,12 @@ const { createClient: createSupabaseClient } = require('@supabase/supabase-js')
 const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY
 const deepgram = DEEPGRAM_API_KEY ? new DeepgramClient({ apiKey: DEEPGRAM_API_KEY }) : null
 
-// Reuses the same Supabase project/env vars (SUPABASE_URL, SUPABASE_KEY) the
-// rest of the bot already uses — no new credentials needed. Requires a
-// `voice_disconnects` table (see voice_disconnects_table.sql).
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_KEY
 const supabase = (SUPABASE_URL && SUPABASE_KEY) ? createSupabaseClient(SUPABASE_URL, SUPABASE_KEY) : null
+
+const ffmpeg = require('ffmpeg-static')
+process.env.PATH = `${require('path').dirname(ffmpeg)}:${process.env.PATH}`
 
 async function recordDisconnect(userId, flaggedWord) {
   if (!supabase) return
