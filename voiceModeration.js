@@ -6,10 +6,10 @@ const {
   entersState,
 } = require('@discordjs/voice')
 const prism = require('prism-media')
-const { createClient, LiveTranscriptionEvents } = require('@deepgram/sdk')
+const { DeepgramClient } = require('@deepgram/sdk')
 
 const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY
-const deepgram = DEEPGRAM_API_KEY ? createClient(DEEPGRAM_API_KEY) : null
+const deepgram = DEEPGRAM_API_KEY ? new DeepgramClient({ apiKey: DEEPGRAM_API_KEY }) : null
 
 // Optional: force a specific language via Railway env var, e.g. DEEPGRAM_LANGUAGE=tl or =en
 // If unset, we restrict detection to English + Tagalog only (see openLiveConnection).
@@ -34,9 +34,6 @@ function loadWordlist() {
     console.warn('[voice-mod] BAD_WORDS env var not set — nothing will be flagged.')
     return []
   }
-  // Only rebuild if the underlying env value actually changed — loadWordlist()
-  // used to allocate a new array every call, which made the old reference-equality
-  // cache check in findHit() never hit.
   if (raw === cachedWordlistRaw) return cachedWordlist
   cachedWordlistRaw = raw
   cachedWordlist = raw.split(',').map(w => w.toLowerCase().trim()).filter(Boolean)
@@ -59,64 +56,58 @@ function findHit(transcript) {
 }
 
 // ── Streaming transcription ──────────────────────────────────────────────────
-// Replaces the old buffer-the-whole-utterance + batch-transcribe approach.
-// PCM is streamed to Deepgram as it arrives, so moderation can fire on a partial
-// result mid-sentence instead of waiting for ~700ms of silence + a full upload.
+// PCM is streamed to Deepgram as it arrives over a WebSocket, instead of
+// buffering a whole utterance and sending one HTTP call at the end. This is
+// the @deepgram/sdk v5 "listen.v1.connect" streaming API.
 
-function openLiveConnection({ onTranscript, onError }) {
+async function openLiveConnection({ onTranscript, onError }) {
   if (!deepgram) return null
 
-  const liveOptions = {
+  const options = {
     model: 'nova-3',
     encoding: 'linear16',
     sample_rate: 48000,
     channels: 2,
-    interim_results: true, // get partial transcripts as words come in, not just at end-of-turn
-    endpointing: 300,      // ms of silence Deepgram waits before finalizing an utterance
-    smart_format: false,   // not needed for raw wordlist matching — skip the extra work
+    interim_results: 'true', // partial transcripts as words come in, not just at end-of-turn
+    endpointing: 300,        // ms of silence before Deepgram finalizes an utterance
   }
 
   if (DEEPGRAM_LANGUAGE) {
-    liveOptions.language = DEEPGRAM_LANGUAGE
+    options.language = DEEPGRAM_LANGUAGE
   } else {
-    // Restrict to English + Tagalog only. NOTE: verify against your installed
-    // @deepgram/sdk version that array values get serialized as repeated query
-    // params (detect_language=en&detect_language=tl) — some SDK versions may
-    // need this passed differently. Test with a live request and inspect the
-    // outgoing URL before trusting this in production.
-    liveOptions.detect_language = ['en', 'tl']
+    // Restrict detection to English + Tagalog only, instead of all ~35
+    // languages Deepgram can detect.
+    options.detect_language = ['en', 'tl']
   }
 
-  const live = deepgram.listen.live(liveOptions)
+  const connection = await deepgram.listen.v1.connect(options)
 
-  live.on(LiveTranscriptionEvents.Open, () => {
-    live.on(LiveTranscriptionEvents.Transcript, data => {
-      const transcript = data?.channel?.alternatives?.[0]?.transcript
-      if (transcript) onTranscript(transcript, data.is_final === true)
-    })
-
-    live.on(LiveTranscriptionEvents.Error, err => {
-      console.error('[voice-mod] Deepgram live error:', err?.message || err)
-      onError?.(err)
-    })
-
-    live.on(LiveTranscriptionEvents.Close, () => {
-      // Connection closed — nothing to do, listenToUser's cleanup handles state.
-    })
+  connection.on('message', data => {
+    if (data.type !== 'Results') return
+    const transcript = data?.channel?.alternatives?.[0]?.transcript
+    if (transcript) onTranscript(transcript, data.is_final === true)
   })
 
-  return live
+  connection.on('error', err => {
+    console.error('[voice-mod] Deepgram live error:', err?.message || err)
+    onError?.(err)
+  })
+
+  connection.connect()
+  await connection.waitForOpen()
+
+  return connection
 }
 
 // ── Per-speaker listening ────────────────────────────────────────────────────
 
-function listenToUser(connection, userId, onMatch, onDone) {
+function listenToUser(voiceConnection, userId, onMatch, onDone) {
   if (!deepgram) {
     onDone()
     return
   }
 
-  const opusStream = connection.receiver.subscribe(userId, {
+  const opusStream = voiceConnection.receiver.subscribe(userId, {
     end: { behavior: EndBehaviorType.AfterSilence, duration: 700 },
   })
 
@@ -124,13 +115,13 @@ function listenToUser(connection, userId, onMatch, onDone) {
 
   let flagged = false
   let liveTranscript = ''
+  let dgConnection = null
+  let closed = false
 
-  const live = openLiveConnection({
+  openLiveConnection({
     onTranscript: async (transcript, isFinal) => {
-      // Keep the latest text around for logging even if nothing matches.
       liveTranscript = transcript
-
-      if (flagged) return // already handled this speaker's utterance, ignore further results
+      if (flagged) return // already handled this speaker's utterance
       const hit = findHit(transcript)
       if (hit) {
         flagged = true
@@ -139,20 +130,24 @@ function listenToUser(connection, userId, onMatch, onDone) {
       }
     },
     onError: () => {
-      // Logged inside openLiveConnection; nothing further to do here.
+      // Logged inside openLiveConnection.
     },
   })
-
-  if (!live) {
-    onDone()
-    return
-  }
+    .then(connection => {
+      dgConnection = connection
+      if (closed) {
+        // Decoder already finished before the socket finished opening — close it now.
+        try { connection.close() } catch (err) { /* already closed */ }
+      }
+    })
+    .catch(err => {
+      console.error('[voice-mod] failed to open Deepgram connection:', err.message || err)
+      onDone()
+    })
 
   opusStream.pipe(decoder)
   decoder.on('data', chunk => {
-    // live.getReadyState() === 1 means OPEN; guard against sending before
-    // the socket handshake completes or after it's been torn down.
-    if (live.getReadyState() === 1) live.send(chunk)
+    if (dgConnection) dgConnection.sendMedia(chunk)
   })
 
   const cleanup = () => {
@@ -160,7 +155,13 @@ function listenToUser(connection, userId, onMatch, onDone) {
     if (liveTranscript && !flagged) {
       console.log(`[voice-mod] ${userId}: "${liveTranscript}" (no match)`)
     }
-    try { live.requestClose() } catch (err) { /* already closed */ }
+    closed = true
+    if (dgConnection) {
+      try {
+        dgConnection.sendCloseStream({ type: 'CloseStream' })
+        dgConnection.close()
+      } catch (err) { /* already closed */ }
+    }
   }
 
   decoder.on('end', cleanup)
