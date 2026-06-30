@@ -7,9 +7,43 @@ const {
 } = require('@discordjs/voice')
 const prism = require('prism-media')
 const { DeepgramClient } = require('@deepgram/sdk')
+const { createClient: createSupabaseClient } = require('@supabase/supabase-js')
 
 const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY
 const deepgram = DEEPGRAM_API_KEY ? new DeepgramClient({ apiKey: DEEPGRAM_API_KEY }) : null
+
+// Reuses the same Supabase project/env vars (SUPABASE_URL, SUPABASE_KEY) the
+// rest of the bot already uses — no new credentials needed. Requires a
+// `voice_disconnects` table (see voice_disconnects_table.sql).
+const SUPABASE_URL = process.env.SUPABASE_URL
+const SUPABASE_KEY = process.env.SUPABASE_KEY
+const supabase = (SUPABASE_URL && SUPABASE_KEY) ? createSupabaseClient(SUPABASE_URL, SUPABASE_KEY) : null
+
+async function recordDisconnect(userId, flaggedWord) {
+  if (!supabase) return
+  const { error } = await supabase.from('voice_disconnects').insert({
+    user_id: userId,
+    flagged_word: flaggedWord,
+  })
+  if (error) console.error('[voice-mod] failed to record disconnect:', error.message)
+}
+
+async function getLeaderboard(limit = 10) {
+  if (!supabase) return []
+  const { data, error } = await supabase.from('voice_disconnects').select('user_id')
+  if (error) {
+    console.error('[voice-mod] failed to fetch leaderboard:', error.message)
+    return []
+  }
+  const counts = new Map()
+  for (const row of data) {
+    counts.set(row.user_id, (counts.get(row.user_id) || 0) + 1)
+  }
+  return [...counts.entries()]
+    .map(([userId, count]) => ({ userId, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit)
+}
 
 // Which languages to transcribe in parallel is controlled by DEEPGRAM_LANGUAGES
 // below (defaults to English + Tagalog) — see STREAMING_LANGUAGES.
@@ -217,6 +251,7 @@ async function startModeration(voiceChannel, textChannel) {
       const member = await guild.members.fetch(userId)
       if (!member.voice.channel) return
       await member.voice.disconnect('Voice moderation: flagged word detected')
+      await recordDisconnect(userId, hit)
       if (textChannel) {
         await textChannel.send(
           `🔇 Disconnected <@${userId}> from voice — flagged word detected: "${hit}"`
@@ -268,4 +303,4 @@ function isModerating(guildId) {
   return activeSessions.has(guildId)
 }
 
-module.exports = { startModeration, stopModeration, isModerating }
+module.exports = { startModeration, stopModeration, isModerating, getLeaderboard }
