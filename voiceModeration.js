@@ -219,7 +219,7 @@ async function startModeration(voiceChannel, textChannel) {
       await member.voice.disconnect('Voice moderation: flagged word detected')
       if (textChannel) {
         await textChannel.send(
-          `🔇 Disconnected <@${userId}> from voice — flagged word detected.`
+          `🔇 Disconnected <@${userId}> from voice — flagged word detected: "${hit}"`
         )
       }
     } catch (err) {
