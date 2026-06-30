@@ -25,6 +25,9 @@ const activeSessions = new Map()
 // This never touches git or your local machine.
 // Matching is whole-word (case-insensitive), so "ass" won't match "class".
 
+let cachedWordlist = null
+let cachedRegex = null
+
 function loadWordlist() {
   const raw = process.env.BAD_WORDS
   if (!raw) {
@@ -34,15 +37,25 @@ function loadWordlist() {
   return raw.split(',').map(w => w.toLowerCase().trim()).filter(Boolean)
 }
 
+function buildRegex(wordlist) {
+  if (wordlist.length === 0) return null
+  const escaped = wordlist.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
+  return new RegExp(`\\b(?:${escaped})\\b`, 'i')
+}
+
 function findHit(transcript, wordlist) {
   if (!transcript || wordlist.length === 0) return null
-  const normalized = transcript.toLowerCase()
-  for (const word of wordlist) {
-    const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const re = new RegExp(`\\b${escaped}\\b`, 'i')
-    if (re.test(normalized)) return word
+  
+  // Rebuild regex only if wordlist changed
+  if (cachedWordlist !== wordlist) {
+    cachedWordlist = wordlist
+    cachedRegex = buildRegex(wordlist)
   }
-  return null
+  
+  if (!cachedRegex) return null
+  
+  const match = transcript.toLowerCase().match(cachedRegex)
+  return match ? match[0] : null
 }
 
 // ── Transcription ────────────────────────────────────────────────────────────
@@ -201,3 +214,4 @@ function isModerating(guildId) {
 }
 
 module.exports = { startModeration, stopModeration, isModerating }
+
