@@ -1,7 +1,13 @@
+<<<<<<< HEAD
 const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js')
 const { createClient } = require('@supabase/supabase-js')
 const express = require('express')
 const { startModeration, stopModeration, isModerating } = require('./voiceModeration')
+=======
+const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder } = require('discord.js')
+const { createClient } = require('@supabase/supabase-js')
+const express = require('express')
+>>>>>>> 05e6f52d480df5f95ec7d5bba4648c191286cc75
 
 const BOT_TOKEN = process.env.BOT_TOKEN
 const CLIENT_ID = process.env.CLIENT_ID
@@ -124,6 +130,7 @@ const commands = [
     .setName('scream')
     .setDescription('Manually announce the latest reset from the website'),
 
+<<<<<<< HEAD
   new SlashCommandBuilder()
     .setName('modjoin')
     .setDescription('Bot joins your voice channel and starts listening for flagged words')
@@ -134,6 +141,8 @@ const commands = [
     .setDescription('Stops voice moderation and leaves the voice channel')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
+=======
+>>>>>>> 05e6f52d480df5f95ec7d5bba4648c191286cc75
 ].map(c => c.toJSON())
 
 async function registerCommands() {
@@ -149,7 +158,11 @@ async function registerCommands() {
 
 // ── Bot ───────────────────────────────────────────────────────────────────────
 
+<<<<<<< HEAD
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates] })
+=======
+const client = new Client({ intents: [GatewayIntentBits.Guilds] })
+>>>>>>> 05e6f52d480df5f95ec7d5bba4648c191286cc75
 
 client.once('ready', async () => {
   console.log(`Logged in as ${client.user.tag}`)
@@ -329,6 +342,7 @@ client.on('interactionCreate', async interaction => {
     await screamInChannel(latest)
     await interaction.editReply('✅ Screamed in channel.')
   }
+<<<<<<< HEAD
 
   // ── /modjoin ────────────────────────────────────────────────────────────────
   if (interaction.commandName === 'modjoin') {
@@ -359,6 +373,8 @@ client.on('interactionCreate', async interaction => {
     const stopped = stopModeration(interaction.guild.id)
     await interaction.editReply(stopped ? '👋 Left voice and stopped moderation.' : 'Not currently moderating any voice channel.')
   }
+=======
+>>>>>>> 05e6f52d480df5f95ec7d5bba4648c191286cc75
 })
 
 // ── Webhook server (receives Supabase DB webhook when website resets) ─────────
