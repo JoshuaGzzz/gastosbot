@@ -1,7 +1,7 @@
 const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js')
 const { createClient } = require('@supabase/supabase-js')
 const express = require('express')
-const { startModeration, stopModeration, isModerating } = require('./voiceModeration')
+const { startModeration, stopModeration, isModerating, getLeaderboard } = require('./voiceModeration')
 
 const BOT_TOKEN = process.env.BOT_TOKEN
 const CLIENT_ID = process.env.CLIENT_ID
@@ -133,6 +133,10 @@ const commands = [
     .setName('modleave')
     .setDescription('Stops voice moderation and leaves the voice channel')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+
+  new SlashCommandBuilder()
+    .setName('modleaderboard')
+    .setDescription('Shows who has been disconnected the most for flagged words'),
 
 ].map(c => c.toJSON())
 
@@ -358,6 +362,31 @@ client.on('interactionCreate', async interaction => {
 
     const stopped = stopModeration(interaction.guild.id)
     await interaction.editReply(stopped ? '👋 Left voice and stopped moderation.' : 'Not currently moderating any voice channel.')
+  }
+
+  // ── /modleaderboard ─────────────────────────────────────────────────────────
+  if (interaction.commandName === 'modleaderboard') {
+    await interaction.deferReply()
+
+    const leaderboard = await getLeaderboard(10)
+
+    if (leaderboard.length === 0) {
+      return interaction.editReply('No one has been disconnected for flagged words yet.')
+    }
+
+    const medals = ['🥇', '🥈', '🥉']
+    const lines = leaderboard.map((entry, i) =>
+      `${medals[i] ?? `${i + 1}.`} <@${entry.userId}> — **${entry.count}** disconnect${entry.count === 1 ? '' : 's'}`
+    ).join('\n')
+
+    const embed = new EmbedBuilder()
+      .setTitle('🔇 Voice Mod Leaderboard')
+      .setDescription(lines)
+      .setColor(0xef4444)
+      .setFooter({ text: 'Most disconnected for flagged words' })
+      .setTimestamp()
+
+    await interaction.editReply({ embeds: [embed] })
   }
 })
 
