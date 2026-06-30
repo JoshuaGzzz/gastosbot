@@ -1,9 +1,12 @@
-const {
+const { 
   joinVoiceChannel,
   getVoiceConnection,
   EndBehaviorType,
   VoiceConnectionStatus,
   entersState,
+  createAudioPlayer,      // add these
+  createAudioResource,
+  AudioPlayerStatus,
 } = require('@discordjs/voice')
 const prism = require('prism-media')
 const { DeepgramClient } = require('@deepgram/sdk')
@@ -246,21 +249,39 @@ async function startModeration(voiceChannel, textChannel) {
   const session = { connection, textChannel, buffering: new Set() }
   activeSessions.set(guild.id, session)
 
-  const onMatch = async (userId, transcript, hit) => {
-    try {
-      const member = await guild.members.fetch(userId)
-      if (!member.voice.channel) return
-      await member.voice.disconnect('Voice moderation: flagged word detected')
-      await recordDisconnect(userId, hit)
-      if (textChannel) {
-        await textChannel.send(
-          `🔇 Disconnected <@${userId}> from voice — flagged word detected: "${hit}"`
-        )
-      }
-    } catch (err) {
-      console.error('[voice-mod] failed to disconnect flagged user:', err.message || err)
+const onMatch = async (userId, transcript, hit) => {
+  try {
+    const member = await guild.members.fetch(userId)
+    if (!member.voice.channel) return
+    await member.voice.disconnect('Voice moderation: flagged word detected')
+    await recordDisconnect(userId, hit)
+    if (textChannel) {
+      await textChannel.send(
+        `🔇 Disconnected <@${userId}> from voice — flagged word detected: "${hit}"`
+      )
     }
+
+    // Unmute, play sound, remute
+    const botMember = await guild.members.fetchMe()
+    await botMember.voice.setMute(false)
+
+    const player = createAudioPlayer()
+    const resource = createAudioResource('./sounds/flagged.mp3') // your file here
+    connection.subscribe(player)
+    player.play(resource)
+
+    await new Promise((resolve, reject) => {
+      player.on(AudioPlayerStatus.Idle, resolve)
+      player.on('error', reject)
+    })
+
+    await botMember.voice.setMute(true)
+    player.stop()
+
+  } catch (err) {
+    console.error('[voice-mod] failed to disconnect flagged user:', err.message || err)
   }
+}
 
   connection.receiver.speaking.on('start', async userId => {
     if (session.buffering.has(userId)) return
