@@ -142,14 +142,19 @@ async function openUserConnections(guildId, userId, onMatch) {
   )
 
   if (!userConnectionsMap.has(guildId)) userConnectionsMap.set(guildId, new Map())
-  userConnectionsMap.get(guildId).set(userId, { dgConnections, lastTranscriptByLang, flaggedRef })
-  console.log(`[voice-mod] opened ${STREAMING_LANGUAGES.length} Deepgram connection(s) for ${userId}`)
-}
+  userConnectionsMap.get(guildId).set(userId, {
+    dgConnections,
+    lastTranscriptByLang,
+    flaggedRef,
+    closed: false,
+    activeListener: null,
+  })
 
 function closeUserConnections(guildId, userId) {
   const entry = userConnectionsMap.get(guildId)?.get(userId)
   if (!entry) return
-  entry.closed = true   // <-- new
+  entry.closed = true
+  if (entry.activeListener) entry.activeListener()
   for (const conn of entry.dgConnections) {
     if (!conn) continue
     try { conn.sendCloseStream({ type: 'CloseStream' }); conn.close() } catch (_) {}
@@ -169,7 +174,7 @@ function closeAllUserConnections(guildId) {
 
 function listenToUser(voiceConnection, userId, guildId, onDone) {
   const entry = userConnectionsMap.get(guildId)?.get(userId)
-  if (!entry) { onDone(); return }
+  if (!entry || entry.closed) { onDone(); return }
 
   const opusStream = voiceConnection.receiver.subscribe(userId, {
     end: { behavior: EndBehaviorType.AfterSilence, duration: 700 },
@@ -179,11 +184,28 @@ function listenToUser(voiceConnection, userId, guildId, onDone) {
   opusStream.pipe(decoder)
 
   decoder.on('data', chunk => {
-    if (entry.closed) return   // <-- new
+    if (entry.closed) return
     for (const conn of entry.dgConnections) {
       if (conn) conn.sendMedia(chunk)
     }
   })
+
+  let done = false
+  const stop = () => {
+    if (done) return
+    done = true
+    if (entry.activeListener === stop) entry.activeListener = null
+    onDone()
+    try { opusStream.unpipe(decoder) } catch (_) {}
+    try { decoder.destroy() } catch (_) {}
+    try { opusStream.destroy() } catch (_) {}
+  }
+  entry.activeListener = stop
+
+  decoder.on('end', stop)
+  opusStream.on('error', err => { console.error('[voice-mod] opus stream error:', err.message || err); stop() })
+  decoder.on('error', err => { console.error('[voice-mod] decoder error:', err.message || err) })
+}
 
   const cleanup = () => {
     onDone()
@@ -228,14 +250,13 @@ async function startModeration(voiceChannel, textChannel) {
 
   const onMatch = async (userId, transcript, hit) => {
     try {
-      const member = guild.members.cache.get(userId) ?? await guild.members.fetch(userId)
+      const member = await guild.members.fetch(userId)
       if (!member.voice.channel) return
+      closeUserConnections(guild.id, userId)              // moved up — don't wait on the network call
       await member.voice.disconnect('Voice moderation: flagged word detected')
-      closeUserConnections(guild.id, userId)
-  
-      // fire and forget — don't await these before playing sound
-      recordDisconnect(userId, hit)
-      if (textChannel) textChannel.send(`🔇 Disconnected <@${userId}> from voice — flagged word detected: "${hit}"`)
+      await recordDisconnect(userId, hit)
+      if (textChannel) await textChannel.send(`🔇 Disconnected <@${userId}> from voice — flagged word detected: "${hit}"`)
+      // ...sound-playback block unchanged
   
       const player = createAudioPlayer()
       const resource = createAudioResource('./sounds/fahhhhhhhhhhhhhhh.mp3', { inlineVolume: true })
