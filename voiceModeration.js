@@ -93,7 +93,7 @@ async function openLiveConnection(language, { onTranscript, onError }) {
     sample_rate: 48000,
     channels: 2,
     interim_results: 'true',
-    endpointing: 300,
+    endpointing: 10,
     language,
   })
 
@@ -226,13 +226,15 @@ async function startModeration(voiceChannel, textChannel) {
 
   const onMatch = async (userId, transcript, hit) => {
     try {
-      const member = await guild.members.fetch(userId)
+      const member = guild.members.cache.get(userId) ?? await guild.members.fetch(userId)
       if (!member.voice.channel) return
       await member.voice.disconnect('Voice moderation: flagged word detected')
       closeUserConnections(guild.id, userId)
-      await recordDisconnect(userId, hit)
-      if (textChannel) await textChannel.send(`🔇 Disconnected <@${userId}> from voice — flagged word detected: "${hit}"`)
-
+  
+      // fire and forget — don't await these before playing sound
+      recordDisconnect(userId, hit)
+      if (textChannel) textChannel.send(`🔇 Disconnected <@${userId}> from voice — flagged word detected: "${hit}"`)
+  
       const player = createAudioPlayer()
       const resource = createAudioResource('./sounds/fahhhhhhhhhhhhhhh.mp3', { inlineVolume: true })
       resource.volume.setVolumeLogarithmic(0.25)
