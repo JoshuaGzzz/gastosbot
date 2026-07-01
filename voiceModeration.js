@@ -185,6 +185,14 @@ function listenToUser(voiceConnection, userId, guildId, onDone) {
 
   const cleanup = () => {
     onDone()
+    const entry = userConnectionsMap.get(guildId)?.get(userId)
+    if (entry) {
+      const summary = STREAMING_LANGUAGES
+        .map(lang => entry.lastTranscriptByLang[lang] && `${lang}: "${entry.lastTranscriptByLang[lang]}"`)
+        .filter(Boolean)
+        .join(' | ')
+      if (summary) console.log(`[voice-mod] ${userId}: ${summary} (no match)`)
+    }
     try { opusStream.unpipe(decoder); decoder.destroy() } catch (_) {}
   }
 
