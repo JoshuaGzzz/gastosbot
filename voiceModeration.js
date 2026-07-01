@@ -149,6 +149,7 @@ async function openUserConnections(guildId, userId, onMatch) {
 function closeUserConnections(guildId, userId) {
   const entry = userConnectionsMap.get(guildId)?.get(userId)
   if (!entry) return
+  entry.closed = true   // <-- new
   for (const conn of entry.dgConnections) {
     if (!conn) continue
     try { conn.sendCloseStream({ type: 'CloseStream' }); conn.close() } catch (_) {}
@@ -178,6 +179,7 @@ function listenToUser(voiceConnection, userId, guildId, onDone) {
   opusStream.pipe(decoder)
 
   decoder.on('data', chunk => {
+    if (entry.closed) return   // <-- new
     for (const conn of entry.dgConnections) {
       if (conn) conn.sendMedia(chunk)
     }
