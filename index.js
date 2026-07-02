@@ -2,7 +2,7 @@ const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuild
 const { createClient } = require('@supabase/supabase-js')
 const express = require('express')
 const { startModeration, stopModeration, isModerating, getLeaderboard } = require('./voiceModeration')
-const { playJoinSound } = require('./joinSound')
+const { playJoinSound, setJoinSoundEnabled } = require('./joinSound')
 
 const BOT_TOKEN = process.env.BOT_TOKEN
 const CLIENT_ID = process.env.CLIENT_ID
@@ -138,6 +138,20 @@ const commands = [
   new SlashCommandBuilder()
     .setName('modleaderboard')
     .setDescription('Shows who has been disconnected the most for flagged words'),
+
+  new SlashCommandBuilder()
+    .setName('joinsound')
+    .setDescription('Turn the auto-join sound on or off for this server')
+    .addStringOption(opt =>
+      opt.setName('state')
+        .setDescription('Turn the join sound on or off')
+        .setRequired(true)
+        .addChoices(
+          { name: 'On', value: 'on' },
+          { name: 'Off', value: 'off' },
+        )
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
 ].map(c => c.toJSON())
 
@@ -400,6 +414,20 @@ client.on('interactionCreate', async interaction => {
       .setTimestamp()
 
     await interaction.editReply({ embeds: [embed] })
+  }
+
+  // ── /joinsound ──────────────────────────────────────────────────────────────
+  if (interaction.commandName === 'joinsound') {
+    await interaction.deferReply({ ephemeral: true })
+
+    const state = interaction.options.getString('state')
+    setJoinSoundEnabled(interaction.guild.id, state === 'on')
+
+    await interaction.editReply(
+      state === 'on'
+        ? '🔔 Join sound is now **on** — I\'ll hop into a VC and play a sound when someone joins.'
+        : '🔕 Join sound is now **off** — I won\'t auto-join voice channels for that anymore.'
+    )
   }
 })
 
