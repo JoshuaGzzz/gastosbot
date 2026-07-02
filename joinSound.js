@@ -7,14 +7,31 @@ const {
   VoiceConnectionStatus,
   entersState,
 } = require('@discordjs/voice')
+const { isModerating } = require('./voiceModeration')
 
 const JOIN_SOUND_PATH = process.env.JOIN_SOUND_PATH || './sounds/join.mp3'
 const COOLDOWN_MS = 3000 // stops back-to-back joins from overlapping playback
 
 const lastPlayed = new Map() // guildId -> timestamp
+const disabledGuilds = new Set() // guildId -> join sound turned off via /joinsound
+
+function setJoinSoundEnabled(guildId, enabled) {
+  if (enabled) disabledGuilds.delete(guildId)
+  else disabledGuilds.add(guildId)
+}
+
+function isJoinSoundEnabled(guildId) {
+  return !disabledGuilds.has(guildId)
+}
 
 async function playJoinSound(voiceChannel) {
   const guildId = voiceChannel.guild.id
+
+  if (!isJoinSoundEnabled(guildId)) return
+  // Voice moderation and the join sound share one voice connection per guild —
+  // joining a different channel here would drag /modjoin's connection away
+  // from the channel it's supposed to be listening to.
+  if (isModerating(guildId)) return
 
   const now = Date.now()
   if (now - (lastPlayed.get(guildId) || 0) < COOLDOWN_MS) return
@@ -48,4 +65,4 @@ async function playJoinSound(voiceChannel) {
   })
 }
 
-module.exports = { playJoinSound }
+module.exports = { playJoinSound, setJoinSoundEnabled, isJoinSoundEnabled }
