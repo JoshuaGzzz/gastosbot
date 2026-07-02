@@ -212,7 +212,7 @@ async function startModeration(voiceChannel, textChannel) {
   if (activeSessions.has(guild.id)) throw new Error('Voice moderation is already running in this server. Use /modleave first.')
 
   let connection = getVoiceConnection(guild.id)
-  if (!connection) {
+  if (!connection || connection.joinConfig.channelId !== voiceChannel.id) {
     connection = joinVoiceChannel({
       channelId: voiceChannel.id,
       guildId: guild.id,
