@@ -1,114 +1,52 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js')
 
-const BETTING_DURATION_MS = 30_000
+const BETTING_DURATION_MS = 15_000
 const activeSabongGames = new Map()
 
-const FIGHT_FRAMES = [
-  {
-    title: '🐓 LASLAS NA! FIGHT BEGINS!',
-    scene: [
-      '```',
-      '🔴 MERON          WALA 🔵',
-      '',
-      '   >🐓            🐓<   ',
-      '                        ',
-      '     . . . circling . . .',
-      '```',
-    ].join('\n'),
-  },
-  {
-    title: '💨 THEY CHARGE!',
-    scene: [
-      '```',
-      '🔴 MERON          WALA 🔵',
-      '',
-      '      >🐓      🐓<      ',
-      '      ~~~~~~~~          ',
-      '       charging!!!      ',
-      '```',
-    ].join('\n'),
-  },
-  {
-    title: '💥 CLASH!',
-    scene: [
-      '```',
-      '🔴 MERON          WALA 🔵',
-      '',
-      '         >🐓🐓<          ',
-      '           💥            ',
-      '        LASLAS!!!        ',
-      '```',
-    ].join('\n'),
-  },
-  {
-    title: '🩸 ROUND 2!',
-    scene: [
-      '```',
-      '🔴 MERON          WALA 🔵',
-      '',
-      '   >🐓            🐓<   ',
-      '   ~~~            ~~~   ',
-      '    both still alive!   ',
-      '```',
-    ].join('\n'),
-  },
-  {
-    title: '😤 THEY GO AGAIN!',
-    scene: [
-      '```',
-      '🔴 MERON          WALA 🔵',
-      '',
-      '        >🐓  🐓<         ',
-      '        CLASH!!          ',
-      '        💥💥💥           ',
-      '```',
-    ].join('\n'),
-  },
-  {
-    title: '⚔️ FINAL BLOW!',
-    scene: [
-      '```',
-      '🔴 MERON          WALA 🔵',
-      '',
-      '         >🐓🐓<          ',
-      '           💥            ',
-      '      DECIDING BLOW!!!   ',
-      '```',
-    ].join('\n'),
-  },
-]
+// ── Hardcoded Tenor GIF URLs for each fight phase ──────────────────────────
 
-function buildWinnerFrame(winner, losers, winnerBettors, loserBettors) {
-  const winnerLabel = winner === 'meron' ? '🔴 MERON' : '🔵 WALA'
-  const loserLabel = winner === 'meron' ? 'WALA 🔵' : 'MERON 🔴'
-
-  const scene = winner === 'meron'
-    ? [
-        '```',
-        `🔴 MERON          WALA 🔵`,
-        '',
-        `   >🐓🏆          💀    `,
-        `   WINNER!        ded   `,
-        '```',
-      ].join('\n')
-    : [
-        '```',
-        `🔴 MERON          WALA 🔵`,
-        '',
-        `     💀          🏆🐓<  `,
-        `     ded         WINNER!`,
-        '```',
-      ].join('\n')
-
-  return {
-    title: `${winnerLabel} WINS! GAME!`,
-    scene,
-    winnerLabel,
-    loserLabel,
-    winnerBettors,
-    loserBettors,
-  }
+const GIFS = {
+  idle: [
+    'https://media.tenor.com/kcrjrm59y7oAAAAd/gallos.gif',
+    'https://media.tenor.com/ES0NXtRXBNcAAAAd/you-lookin-at-me-rooster.gif',
+    'https://media.tenor.com/-zb6aLr7VEUAAAAd/%D0%BF%D0%B5%D1%82%D1%83%D1%85-rooster.gif',
+  ],
+  circling: [
+    'https://media.tenor.com/HF6LiYhFV2kAAAAd/cock-fight-namma-veettu-pillai.gif',
+    'https://media.tenor.com/XG6kqhrI0dYAAAAd/war-chicken.gif',
+    'https://media.tenor.com/wrCreAPXR9gAAAAd/fighting-chickens-chicken.gif',
+  ],
+  charging: [
+    'https://media.tenor.com/3VhgcVzmmrIAAAAd/on-my-way-keiji.gif',
+    'https://media.tenor.com/97vgNyUw7coAAAAd/peter-griffin-peter-vs-chicken.gif',
+    'https://media.tenor.com/n7UAaQsJq0kAAAAd/popodak-rooster.gif',
+  ],
+  laslas: [
+    'https://media.tenor.com/E9Yk5IPqHkwAAAAd/chicken-bro-chicken.gif',
+    'https://media.tenor.com/MXYhadhBH2UAAAAd/peter-griffin-peter.gif',
+    'https://media.tenor.com/mqXl3_KpWlcAAAAd/chittimallu-exist-sankranthi.gif',
+    'https://media.tenor.com/h7RT1UqCxsAAAAAd/chicken-bro-slap.gif',
+  ],
+  decidingBlow: [
+    'https://media.tenor.com/uM_cnbdVCJgAAAAd/peter-griffin-peter-vs-chicken.gif',
+    'https://media.tenor.com/Z0laAsKyrj8AAAAd/rooster-fighter-keiji.gif',
+    'https://media.tenor.com/xwXbqNxPIvsAAAAd/kungfu-fight.gif',
+  ],
+  defeat: [
+    'https://media.tenor.com/4YICm-LkkDEAAAAd/chicken-scared.gif',
+    'https://media.tenor.com/o38i203tM-sAAAAd/peter-griffin-peter.gif',
+  ],
+  victory: [
+    'https://media.tenor.com/t3-1V_5vCQQAAAAd/insane-rooster.gif',
+    'https://media.tenor.com/pblJgyOT7BkAAAAd/natty-rooster.gif',
+  ],
 }
+
+function pickRandom(arr) {
+  return arr[Math.floor(Math.random() * arr.length)]
+}
+
+// ── Fight animation with GIFs and random round count ────────────────────────
 
 async function animateFight(interaction, game) {
   const winner = Math.random() < 0.5 ? 'meron' : 'wala'
@@ -116,38 +54,93 @@ async function animateFight(interaction, game) {
   const winnerBettors = game.bets[winner]
   const loserBettors = game.bets[loser]
 
-  for (const frame of FIGHT_FRAMES) {
-    const embed = new EmbedBuilder()
-      .setTitle(frame.title)
-      .setDescription(frame.scene)
-      .setColor(0xfbbf24)
+  // Random number of rounds before deciding blow (1 to 10)
+  const totalRounds = Math.floor(Math.random() * 10) + 1
 
-    await interaction.editReply({ embeds: [embed], components: [] })
-    await new Promise(resolve => setTimeout(resolve, 1500))
+  // ── Phase 1: Circling ──
+  const circlingEmbed = new EmbedBuilder()
+    .setTitle('🐓 LASLAS NA! Circling...')
+    .setDescription('The roosters size each other up in the arena...')
+    .setImage(pickRandom(GIFS.circling))
+    .setColor(0xfbbf24)
+
+  await interaction.editReply({ embeds: [circlingEmbed], components: [] })
+  await new Promise(resolve => setTimeout(resolve, 2500))
+
+  // ── Phase 2: Charging ──
+  const chargingEmbed = new EmbedBuilder()
+    .setTitle('💨 SUMALAKAY! They charge!')
+    .setDescription('Both roosters rush forward with talons out!')
+    .setImage(pickRandom(GIFS.charging))
+    .setColor(0xf97316)
+
+  await interaction.editReply({ embeds: [chargingEmbed], components: [] })
+  await new Promise(resolve => setTimeout(resolve, 2500))
+
+  // ── Phase 3: Laslas/Clash rounds (random count) ──
+  for (let round = 1; round <= totalRounds; round++) {
+    const roundTitles = [
+      `💥 ROUND ${round} — LASLAS!`,
+      `⚔️ ROUND ${round} — CLASH!`,
+      `🩸 ROUND ${round} — SALPUKAN!`,
+    ]
+    const roundDescriptions = [
+      'Feathers fly as the blades clash!',
+      'Both roosters exchange devastating blows!',
+      'A fierce exchange — neither backing down!',
+      'Talons spark as they collide mid-air!',
+      'Blood and feathers everywhere! LASLAS!',
+    ]
+
+    const laslasEmbed = new EmbedBuilder()
+      .setTitle(pickRandom(roundTitles))
+      .setDescription(pickRandom(roundDescriptions))
+      .setImage(pickRandom(GIFS.laslas))
+      .setColor(0xef4444)
+      .setFooter({ text: `Round ${round} of ${totalRounds}` })
+
+    await interaction.editReply({ embeds: [laslasEmbed], components: [] })
+    await new Promise(resolve => setTimeout(resolve, 2000))
   }
 
-  const result = buildWinnerFrame(winner, loser, winnerBettors, loserBettors)
+  // ── Phase 4: Deciding blow ──
+  const decidingEmbed = new EmbedBuilder()
+    .setTitle('⚡ DECIDING BLOW!!!')
+    .setDescription('One final devastating strike... who will fall?!')
+    .setImage(pickRandom(GIFS.decidingBlow))
+    .setColor(0x7c3aed)
 
-  const embed = new EmbedBuilder()
-    .setTitle(`🏆 ${result.title}`)
-    .setDescription(result.scene)
+  await interaction.editReply({ embeds: [decidingEmbed], components: [] })
+  await new Promise(resolve => setTimeout(resolve, 3000))
+
+  // ── Phase 5: Result — Victory & Defeat ──
+  const winnerLabel = winner === 'meron' ? '🔴 MERON' : '🔵 WALA'
+  const loserLabel = winner === 'meron' ? 'WALA 🔵' : 'MERON 🔴'
+
+  const resultEmbed = new EmbedBuilder()
+    .setTitle(`🏆 ${winnerLabel} WINS! GAME!`)
+    .setDescription(`The ${winner === 'meron' ? 'Meron' : 'Wala'} rooster delivers the killing blow after **${totalRounds} round(s)**!`)
+    .setImage(pickRandom(GIFS.victory))
+    .setThumbnail(pickRandom(GIFS.defeat))
     .addFields(
       {
-        name: `✅ ${result.winnerLabel} — ${result.winnerBettors.length} bettor(s)`,
-        value: result.winnerBettors.length ? result.winnerBettors.map(id => `<@${id}>`).join(', ') : 'Nobody bet on this side lmao',
+        name: `✅ ${winnerLabel} — ${winnerBettors.length} bettor(s)`,
+        value: winnerBettors.length ? winnerBettors.map(id => `<@${id}>`).join(', ') : 'Nobody bet on this side lmao',
         inline: true,
       },
       {
-        name: `💀 ${result.loserLabel} — ${result.loserBettors.length} bettor(s)`,
-        value: result.loserBettors.length ? result.loserBettors.map(id => `<@${id}>`).join(', ') : 'Nobody',
+        name: `💀 ${loserLabel} — ${loserBettors.length} bettor(s)`,
+        value: loserBettors.length ? loserBettors.map(id => `<@${id}>`).join(', ') : 'Nobody',
         inline: true,
       },
     )
     .setColor(winner === 'meron' ? 0xef4444 : 0x3b82f6)
     .setTimestamp()
 
-  await interaction.editReply({ embeds: [embed], components: [] })
+  await interaction.editReply({ embeds: [resultEmbed], components: [] })
 }
+
+// ── Start sabong (betting phase with idle GIF) ──────────────────────────────
 
 async function startSabong(interaction) {
   if (activeSabongGames.has(interaction.channelId)) {
@@ -170,14 +163,17 @@ async function startSabong(interaction) {
 
     const closedEmbed = new EmbedBuilder()
       .setTitle('🔒 BETTING CLOSED! Placing the birds in the ring...')
-      .setDescription('```\n   >🐓            🐓<   \n\n    Handlers releasing...\n```')
+      .setDescription('The handlers release the roosters into the arena...')
+      .setImage(pickRandom(GIFS.idle))
       .setColor(0xf97316)
 
     await interaction.editReply({ embeds: [closedEmbed], components: [buildRow(true)] })
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    await new Promise(resolve => setTimeout(resolve, 2500))
     await animateFight(interaction, gameState)
   }, BETTING_DURATION_MS)
 }
+
+// ── Button handler ──────────────────────────────────────────────────────────
 
 async function handleSabongButton(interaction) {
   const game = activeSabongGames.get(interaction.channelId)
@@ -195,13 +191,17 @@ async function handleSabongButton(interaction) {
   await interaction.update({ embeds: [buildBettingEmbed(game)], components: [buildRow(false)] })
 }
 
+// ── Betting embed with idle GIF ─────────────────────────────────────────────
+
 function buildBettingEmbed(game) {
   return new EmbedBuilder()
     .setTitle('🐓 SABONG — Meron o Wala?')
     .setDescription(
-      '```\n🔴 MERON          WALA 🔵\n\n   >🐓            🐓<   \n\n  Place your bets now!!!\n```\n' +
-      `Betting closes <t:${Math.floor(game.endTime / 1000)}:R>`
+      `**Place your bets!** Betting closes <t:${Math.floor(game.endTime / 1000)}:R>\n\n` +
+      '🔴 **MERON** vs **WALA** 🔵\n\n' +
+      'Pick your rooster below!'
     )
+    .setImage(pickRandom(GIFS.idle))
     .addFields(
       {
         name: `🔴 Meron (${game.bets.meron.length})`,
@@ -215,8 +215,10 @@ function buildBettingEmbed(game) {
       },
     )
     .setColor(0xfbbf24)
-    .setFooter({ text: 'You can switch sides until betting closes.' })
+    .setFooter({ text: 'You can switch sides until betting closes. 15 seconds!' })
 }
+
+// ── Button row ──────────────────────────────────────────────────────────────
 
 function buildRow(disabled) {
   return new ActionRowBuilder().addComponents(
