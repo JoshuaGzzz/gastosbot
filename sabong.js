@@ -1,7 +1,153 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js')
 
 const BETTING_DURATION_MS = 30_000
-const activeSabongGames = new Map() // channelId -> game state
+const activeSabongGames = new Map()
+
+const FIGHT_FRAMES = [
+  {
+    title: '🐓 LASLAS NA! FIGHT BEGINS!',
+    scene: [
+      '```',
+      '🔴 MERON          WALA 🔵',
+      '',
+      '   >🐓            🐓<   ',
+      '                        ',
+      '     . . . circling . . .',
+      '```',
+    ].join('\n'),
+  },
+  {
+    title: '💨 THEY CHARGE!',
+    scene: [
+      '```',
+      '🔴 MERON          WALA 🔵',
+      '',
+      '      >🐓      🐓<      ',
+      '      ~~~~~~~~          ',
+      '       charging!!!      ',
+      '```',
+    ].join('\n'),
+  },
+  {
+    title: '💥 CLASH!',
+    scene: [
+      '```',
+      '🔴 MERON          WALA 🔵',
+      '',
+      '         >🐓🐓<          ',
+      '           💥            ',
+      '        LASLAS!!!        ',
+      '```',
+    ].join('\n'),
+  },
+  {
+    title: '🩸 ROUND 2!',
+    scene: [
+      '```',
+      '🔴 MERON          WALA 🔵',
+      '',
+      '   >🐓            🐓<   ',
+      '   ~~~            ~~~   ',
+      '    both still alive!   ',
+      '```',
+    ].join('\n'),
+  },
+  {
+    title: '😤 THEY GO AGAIN!',
+    scene: [
+      '```',
+      '🔴 MERON          WALA 🔵',
+      '',
+      '        >🐓  🐓<         ',
+      '        CLASH!!          ',
+      '        💥💥💥           ',
+      '```',
+    ].join('\n'),
+  },
+  {
+    title: '⚔️ FINAL BLOW!',
+    scene: [
+      '```',
+      '🔴 MERON          WALA 🔵',
+      '',
+      '         >🐓🐓<          ',
+      '           💥            ',
+      '      DECIDING BLOW!!!   ',
+      '```',
+    ].join('\n'),
+  },
+]
+
+function buildWinnerFrame(winner, losers, winnerBettors, loserBettors) {
+  const winnerLabel = winner === 'meron' ? '🔴 MERON' : '🔵 WALA'
+  const loserLabel = winner === 'meron' ? 'WALA 🔵' : 'MERON 🔴'
+
+  const scene = winner === 'meron'
+    ? [
+        '```',
+        `🔴 MERON          WALA 🔵`,
+        '',
+        `   >🐓🏆          💀    `,
+        `   WINNER!        ded   `,
+        '```',
+      ].join('\n')
+    : [
+        '```',
+        `🔴 MERON          WALA 🔵`,
+        '',
+        `     💀          🏆🐓<  `,
+        `     ded         WINNER!`,
+        '```',
+      ].join('\n')
+
+  return {
+    title: `${winnerLabel} WINS! GAME!`,
+    scene,
+    winnerLabel,
+    loserLabel,
+    winnerBettors,
+    loserBettors,
+  }
+}
+
+async function animateFight(interaction, game) {
+  const winner = Math.random() < 0.5 ? 'meron' : 'wala'
+  const loser = winner === 'meron' ? 'wala' : 'meron'
+  const winnerBettors = game.bets[winner]
+  const loserBettors = game.bets[loser]
+
+  for (const frame of FIGHT_FRAMES) {
+    const embed = new EmbedBuilder()
+      .setTitle(frame.title)
+      .setDescription(frame.scene)
+      .setColor(0xfbbf24)
+
+    await interaction.editReply({ embeds: [embed], components: [] })
+    await new Promise(resolve => setTimeout(resolve, 1500))
+  }
+
+  const result = buildWinnerFrame(winner, loser, winnerBettors, loserBettors)
+
+  const embed = new EmbedBuilder()
+    .setTitle(`🏆 ${result.title}`)
+    .setDescription(result.scene)
+    .addFields(
+      {
+        name: `✅ ${result.winnerLabel} — ${result.winnerBettors.length} bettor(s)`,
+        value: result.winnerBettors.length ? result.winnerBettors.map(id => `<@${id}>`).join(', ') : 'Nobody bet on this side lmao',
+        inline: true,
+      },
+      {
+        name: `💀 ${result.loserLabel} — ${result.loserBettors.length} bettor(s)`,
+        value: result.loserBettors.length ? result.loserBettors.map(id => `<@${id}>`).join(', ') : 'Nobody',
+        inline: true,
+      },
+    )
+    .setColor(winner === 'meron' ? 0xef4444 : 0x3b82f6)
+    .setTimestamp()
+
+  await interaction.editReply({ embeds: [embed], components: [] })
+}
 
 async function startSabong(interaction) {
   if (activeSabongGames.has(interaction.channelId)) {
@@ -9,20 +155,27 @@ async function startSabong(interaction) {
   }
 
   const endTime = Date.now() + BETTING_DURATION_MS
-  const gameState = { bets: { meron: [], wala: [] }, closed: false, endTime }
+  const gameState = { bets: { meron: [], wala: [] }, closed: false, endTime, interaction }
   activeSabongGames.set(interaction.channelId, gameState)
 
-  const reply = await interaction.reply({
+  await interaction.reply({
     embeds: [buildBettingEmbed(gameState)],
     components: [buildRow(false)],
     fetchReply: true,
   })
 
-  gameState.interaction = interaction
-
   setTimeout(async () => {
-    await closeSabong(gameState)
+    gameState.closed = true
     activeSabongGames.delete(interaction.channelId)
+
+    const closedEmbed = new EmbedBuilder()
+      .setTitle('🔒 BETTING CLOSED! Placing the birds in the ring...')
+      .setDescription('```\n   >🐓            🐓<   \n\n    Handlers releasing...\n```')
+      .setColor(0xf97316)
+
+    await interaction.editReply({ embeds: [closedEmbed], components: [buildRow(true)] })
+    await new Promise(resolve => setTimeout(resolve, 2000))
+    await animateFight(interaction, gameState)
   }, BETTING_DURATION_MS)
 }
 
@@ -42,41 +195,13 @@ async function handleSabongButton(interaction) {
   await interaction.update({ embeds: [buildBettingEmbed(game)], components: [buildRow(false)] })
 }
 
-async function closeSabong(game) {
-  game.closed = true
-
-  const winner = Math.random() < 0.5 ? 'meron' : 'wala'
-  const loser = winner === 'meron' ? 'wala' : 'meron'
-  const winners = game.bets[winner]
-  const losers = game.bets[loser]
-
-  const winnerLabel = winner === 'meron' ? '🔴 Meron' : '🔵 Wala'
-  const loserLabel = loser === 'meron' ? '🔴 Meron' : '🔵 Wala'
-
-  const embed = new EmbedBuilder()
-    .setTitle(`🐓 ${winnerLabel.toUpperCase()} WINS! LASLAS!`)
-    .addFields(
-      {
-        name: `🏆 ${winnerLabel} (${winners.length})`,
-        value: winners.length ? winners.map(id => `<@${id}>`).join(', ') : 'Nobody',
-        inline: true,
-      },
-      {
-        name: `💀 ${loserLabel} (${losers.length})`,
-        value: losers.length ? losers.map(id => `<@${id}>`).join(', ') : 'Nobody',
-        inline: true,
-      },
-    )
-    .setColor(winner === 'meron' ? 0xef4444 : 0x3b82f6)
-    .setTimestamp()
-
-  await game.interaction.editReply({ embeds: [embed], components: [buildRow(true)] })
-}
-
 function buildBettingEmbed(game) {
   return new EmbedBuilder()
-    .setTitle('🐓 SABONG — Place your bets!')
-    .setDescription(`Betting closes <t:${Math.floor(game.endTime / 1000)}:R>`)
+    .setTitle('🐓 SABONG — Meron o Wala?')
+    .setDescription(
+      '```\n🔴 MERON          WALA 🔵\n\n   >🐓            🐓<   \n\n  Place your bets now!!!\n```\n' +
+      `Betting closes <t:${Math.floor(game.endTime / 1000)}:R>`
+    )
     .addFields(
       {
         name: `🔴 Meron (${game.bets.meron.length})`,
