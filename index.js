@@ -3,6 +3,7 @@ const { createClient } = require('@supabase/supabase-js')
 const express = require('express')
 const { startModeration, stopModeration, isModerating, getLeaderboard } = require('./voiceModeration')
 const { playJoinSound, setJoinSoundEnabled } = require('./joinSound')
+const { startSabong, handleSabongButton, isSabongButton } = require('./sabong')
 
 const BOT_TOKEN = process.env.BOT_TOKEN
 const CLIENT_ID = process.env.CLIENT_ID
@@ -153,6 +154,10 @@ const commands = [
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
+  new SlashCommandBuilder()
+    .setName('sabong')
+    .setDescription('Start a sabong betting game — Meron o Wala?'),
+
 ].map(c => c.toJSON())
 
 async function registerCommands() {
@@ -188,6 +193,13 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 })
 
 client.on('interactionCreate', async interaction => {
+  if (interaction.isButton()) {
+    if (isSabongButton(interaction.customId)) {
+      return handleSabongButton(interaction)
+    }
+    return
+  }
+
   if (!interaction.isChatInputCommand()) return
 
   // ── /timer ──────────────────────────────────────────────────────────────────
@@ -428,6 +440,11 @@ client.on('interactionCreate', async interaction => {
         ? '🔔 Join sound is now **on** — I\'ll hop into a VC and play a sound when someone joins.'
         : '🔕 Join sound is now **off** — I won\'t auto-join voice channels for that anymore.'
     )
+  }
+
+  // ── /sabong ─────────────────────────────────────────────────────────────────
+  if (interaction.commandName === 'sabong') {
+    return startSabong(interaction)
   }
 })
 
