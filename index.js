@@ -160,8 +160,7 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName('badwords')
-    .setDescription('Shows the list of flagged words')
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+    .setDescription('Shows the list of flagged words'),
 
 ].map(c => c.toJSON())
 
@@ -454,7 +453,7 @@ client.on('interactionCreate', async interaction => {
   
     // ── /badwords ───────────────────────────────────────────────────────────────
     if (interaction.commandName === 'badwords') {
-      await interaction.deferReply({ ephemeral: true })
+      await interaction.deferReply()
   
       const badWordsList = loadWordlist()
   
