@@ -1,7 +1,7 @@
 const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js')
 const { createClient } = require('@supabase/supabase-js')
 const express = require('express')
-const { startModeration, stopModeration, isModerating, getLeaderboard } = require('./voiceModeration')
+const { startModeration, stopModeration, isModerating, getLeaderboard, loadWordlist } = require('./voiceModeration')
 const { playJoinSound, setJoinSoundEnabled } = require('./joinSound')
 const { startSabong, handleSabongButton, isSabongButton } = require('./sabong')
 
@@ -157,6 +157,15 @@ const commands = [
   new SlashCommandBuilder()
     .setName('sabong')
     .setDescription('Start a sabong betting game — Meron o Wala?'),
+
+  new SlashCommandBuilder()
+    .setName('sabong')
+    .setDescription('Start a sabong betting game — Meron o Wala?'),
+
+  new SlashCommandBuilder()
+    .setName('badwords')
+    .setDescription('Shows the list of flagged words')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
 ].map(c => c.toJSON())
 
@@ -443,10 +452,30 @@ client.on('interactionCreate', async interaction => {
   }
 
   // ── /sabong ─────────────────────────────────────────────────────────────────
-  if (interaction.commandName === 'sabong') {
-    return startSabong(interaction)
-  }
-})
+    if (interaction.commandName === 'sabong') {
+      return startSabong(interaction)
+    }
+  
+    // ── /badwords ───────────────────────────────────────────────────────────────
+    if (interaction.commandName === 'badwords') {
+      await interaction.deferReply({ ephemeral: true })
+  
+      const badWordsList = loadWordlist()
+  
+      if (badWordsList.length === 0) {
+        return interaction.editReply('No flagged words configured. Set the `BAD_WORDS` env var on Railway.')
+      }
+  
+      const embed = new EmbedBuilder()
+        .setTitle('🚫 Flagged Words List')
+        .setDescription(badWordsList.map(w => `\`${w}\``).join(', '))
+        .setColor(0xef4444)
+        .setFooter({ text: `${badWordsList.length} word(s) flagged` })
+  
+      await interaction.editReply({ embeds: [embed] })
+    }
+  })
+
 
 // ── Webhook server (receives Supabase DB webhook when website resets) ─────────
 
