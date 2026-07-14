@@ -314,4 +314,4 @@ function isModerating(guildId) {
   return activeSessions.has(guildId)
 }
 
-module.exports = { startModeration, stopModeration, isModerating, getLeaderboard }
+module.exports = { startModeration, stopModeration, isModerating, getLeaderboard, loadWordlist }
