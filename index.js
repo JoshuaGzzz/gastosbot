@@ -159,10 +159,6 @@ const commands = [
     .setDescription('Start a sabong betting game — Meron o Wala?'),
 
   new SlashCommandBuilder()
-    .setName('sabong')
-    .setDescription('Start a sabong betting game — Meron o Wala?'),
-
-  new SlashCommandBuilder()
     .setName('badwords')
     .setDescription('Shows the list of flagged words')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
