@@ -12,6 +12,7 @@ const CHANNEL_ID = process.env.CHANNEL_ID
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_KEY
 const WEBHOOK_PORT = process.env.WEBHOOK_PORT || 3000
+const APEX_CHANNEL_ID = process.env.APEX_CHANNEL_ID
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
 
@@ -203,12 +204,11 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
   }
 })
 
+const APEX_ROLE_ID = '1526992510436638912'
+
 const APEX_ROASTS = [
-  "bro just locked into Apex, get some sunlight 💀",
-  "opening Apex again? that's a bold strategy",
-  "another Apex session, another reason to touch grass",
-  "Apex Legends? in this economy?",
-  "the grind never stops, and neither does the losing streak apparently",
+  "desperadong bobo nagopen ng apex.",
+  "NAGAAPEX BADING"
 ]
 
 client.on('presenceUpdate', async (oldPresence, newPresence) => {
@@ -217,10 +217,13 @@ client.on('presenceUpdate', async (oldPresence, newPresence) => {
 
   if (!wasPlayingApex && isPlayingApex) {
     try {
-      const channel = await client.channels.fetch(CHANNEL_ID)
+      const channel = await client.channels.fetch(APEX_CHANNEL_ID)
       if (!channel) return
       const line = APEX_ROASTS[Math.floor(Math.random() * APEX_ROASTS.length)]
-      await channel.send(`${newPresence.member} ${line}`)
+      await channel.send({
+        content: `<@&${APEX_ROLE_ID}> ${newPresence.member} ${line}`,
+        allowedMentions: { parse: ['users', 'roles'] }
+      })
     } catch (err) {
       console.error('[apex-roast] error:', err.message)
     }
