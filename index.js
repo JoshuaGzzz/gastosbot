@@ -177,7 +177,14 @@ async function registerCommands() {
 
 // ── Bot ───────────────────────────────────────────────────────────────────────
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates] })
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.GuildPresences,
+    GatewayIntentBits.GuildMembers,
+  ]
+})
 
 client.once('ready', async () => {
   console.log(`Logged in as ${client.user.tag}`)
@@ -193,6 +200,30 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     await playJoinSound(newState.channel)
   } catch (err) {
     console.error('[join-sound] error:', err.message)
+  }
+})
+
+const APEX_ROASTS = [
+  "bro just locked into Apex, get some sunlight 💀",
+  "opening Apex again? that's a bold strategy",
+  "another Apex session, another reason to touch grass",
+  "Apex Legends? in this economy?",
+  "the grind never stops, and neither does the losing streak apparently",
+]
+
+client.on('presenceUpdate', async (oldPresence, newPresence) => {
+  const wasPlayingApex = oldPresence?.activities?.some(a => a.name === 'Apex Legends')
+  const isPlayingApex = newPresence?.activities?.some(a => a.name === 'Apex Legends')
+
+  if (!wasPlayingApex && isPlayingApex) {
+    try {
+      const channel = await client.channels.fetch(CHANNEL_ID)
+      if (!channel) return
+      const line = APEX_ROASTS[Math.floor(Math.random() * APEX_ROASTS.length)]
+      await channel.send(`${newPresence.member} ${line}`)
+    } catch (err) {
+      console.error('[apex-roast] error:', err.message)
+    }
   }
 })
 
