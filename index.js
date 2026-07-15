@@ -204,7 +204,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
   }
 })
 
-const APEX_ROLE_ID = '1526992510436638912'
+const APEX_ROLE_ID = '1497126564297441301'
 
 const APEX_ROASTS = [
   "desperadong bobo nagopen ng apex.",
