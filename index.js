@@ -196,6 +196,11 @@ const client = new Client({
   ]
 })
 
+client.once('ready', async () => {
+  console.log(`Logged in as ${client.user.tag}`)
+  await registerCommands()
+})
+
 client.on('voiceStateUpdate', async (oldState, newState) => {
   if (newState.member?.user?.bot ?? oldState.member?.user?.bot) return
   if (oldState.channelId === newState.channelId) return
