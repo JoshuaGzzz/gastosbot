@@ -21,7 +21,7 @@ const APEX_ROLE_ID = '1526992510436638912'
 const GITHUB_WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET
 const PATCHNOTES_CHANNEL_ID = process.env.PATCHNOTES_CHANNEL_ID
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
-const geminiModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+const geminiModel = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' })
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
 
