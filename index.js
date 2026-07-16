@@ -13,7 +13,7 @@ const GUILD_ID = process.env.GUILD_ID
 const CHANNEL_ID = process.env.CHANNEL_ID
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_KEY
-const WEBHOOK_PORT = process.env.WEBHOOK_PORT || 3000
+const WEBHOOK_PORT = process.env.PORT || process.env.WEBHOOK_PORT || 3000
 
 const APEX_CHANNEL_ID = process.env.APEX_CHANNEL_ID
 const APEX_ROLE_ID = '1526992510436638912'
