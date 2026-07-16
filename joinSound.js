@@ -13,15 +13,15 @@ const JOIN_SOUND_PATH = process.env.JOIN_SOUND_PATH || './sounds/join.mp3'
 const COOLDOWN_MS = 3000 // stops back-to-back joins from overlapping playback
 
 const lastPlayed = new Map() // guildId -> timestamp
-const enabledGuilds = new Set() // guildId -> join sound turned on via /joinsound (default: OFF)
+const disabledGuilds = new Set() // guildId -> join sound turned OFF via /joinsound (default: ON)
 
 function setJoinSoundEnabled(guildId, enabled) {
-  if (enabled) enabledGuilds.add(guildId)
-  else enabledGuilds.delete(guildId)
+  if (enabled) disabledGuilds.delete(guildId)
+  else disabledGuilds.add(guildId)
 }
 
 function isJoinSoundEnabled(guildId) {
-  return enabledGuilds.has(guildId)
+  return !disabledGuilds.has(guildId)
 }
 
 async function playJoinSound(voiceChannel) {
