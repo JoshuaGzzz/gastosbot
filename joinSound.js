@@ -66,3 +66,43 @@ async function playJoinSound(voiceChannel) {
 }
 
 module.exports = { playJoinSound, setJoinSoundEnabled, isJoinSoundEnabled }
+
+
+const LEAVE_SOUND_PATH = process.env.LEAVE_SOUND_PATH || './sounds/leave.mp3'
+const lastPlayedLeave = new Map() // guildId -> timestamp
+
+async function playLeaveSound(voiceChannel) {
+  const guildId = voiceChannel.guild.id
+  if (!isJoinSoundEnabled(guildId)) return
+  // Same reasoning as playJoinSound: don't steal the connection from /modjoin.
+  if (isModerating(guildId)) return
+  const now = Date.now()
+  if (now - (lastPlayedLeave.get(guildId) || 0) < COOLDOWN_MS) return
+  lastPlayedLeave.set(guildId, now)
+  let connection = getVoiceConnection(guildId)
+  if (!connection || connection.joinConfig.channelId !== voiceChannel.id) {
+    connection = joinVoiceChannel({
+      channelId: voiceChannel.id,
+      guildId,
+      adapterCreator: voiceChannel.guild.voiceAdapterCreator,
+      selfDeaf: true,
+    })
+    try {
+      await entersState(connection, VoiceConnectionStatus.Ready, 15_000)
+    } catch (err) {
+      console.error('[leave-sound] failed to connect:', err.message)
+      return
+    }
+  }
+  const player = createAudioPlayer()
+  const resource = createAudioResource(LEAVE_SOUND_PATH, { inlineVolume: true })
+  resource.volume?.setVolumeLogarithmic(0.5)
+  connection.subscribe(player)
+  player.play(resource)
+  await new Promise(resolve => {
+    player.once(AudioPlayerStatus.Idle, resolve)
+    player.once('error', resolve)
+  })
+}
+
+module.exports = { playJoinSound, playLeaveSound, setJoinSoundEnabled, isJoinSoundEnabled }
