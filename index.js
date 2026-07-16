@@ -16,7 +16,7 @@ const SUPABASE_KEY = process.env.SUPABASE_KEY
 const WEBHOOK_PORT = process.env.PORT || process.env.WEBHOOK_PORT || 3000
 
 const APEX_CHANNEL_ID = process.env.APEX_CHANNEL_ID
-const APEX_ROLE_ID = '1526992510436638912'
+const APEX_ROLE_ID = '1497126564297441301'
 
 const GITHUB_WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET
 const PATCHNOTES_CHANNEL_ID = process.env.PATCHNOTES_CHANNEL_ID
@@ -216,7 +216,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 // ── Apex Legends presence roast ────────────────────────────────────────────────
 
 const APEX_ROASTS = [
-  "desperadong bobo nagopen ng apex.",
+  "NAGAAPEX NA OPEN OPEN OPEN",
 ]
 
 client.on('presenceUpdate', async (oldPresence, newPresence) => {
