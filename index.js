@@ -1,6 +1,8 @@
 const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js')
 const { createClient } = require('@supabase/supabase-js')
 const express = require('express')
+const crypto = require('crypto')
+const { GoogleGenerativeAI } = require('@google/generative-ai')
 const { startModeration, stopModeration, isModerating, getLeaderboard, loadWordlist } = require('./voiceModeration')
 const { playJoinSound, setJoinSoundEnabled } = require('./joinSound')
 const { startSabong, handleSabongButton, isSabongButton } = require('./sabong')
@@ -12,7 +14,14 @@ const CHANNEL_ID = process.env.CHANNEL_ID
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_KEY
 const WEBHOOK_PORT = process.env.WEBHOOK_PORT || 3000
+
 const APEX_CHANNEL_ID = process.env.APEX_CHANNEL_ID
+const APEX_ROLE_ID = '1526992510436638912'
+
+const GITHUB_WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET
+const PATCHNOTES_CHANNEL_ID = process.env.PATCHNOTES_CHANNEL_ID
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+const geminiModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
 
@@ -204,11 +213,10 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
   }
 })
 
-const APEX_ROLE_ID = '1497126564297441301'
+// ── Apex Legends presence roast ────────────────────────────────────────────────
 
 const APEX_ROASTS = [
   "desperadong bobo nagopen ng apex.",
-  "NAGAAPEX BADING"
 ]
 
 client.on('presenceUpdate', async (oldPresence, newPresence) => {
@@ -546,8 +554,26 @@ async function screamInChannel(record) {
   }
 }
 
+// ── GitHub → AI patch notes ─────────────────────────────────────────────────────
+
+function verifyGithubSignature(req) {
+  const signature = req.headers['x-hub-signature-256']
+  if (!signature) return false
+
+  const hmac = crypto.createHmac('sha256', GITHUB_WEBHOOK_SECRET)
+  const digest = 'sha256=' + hmac.update(req.rawBody).digest('hex')
+
+  try {
+    return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(digest))
+  } catch {
+    return false
+  }
+}
+
 const app = express()
-app.use(express.json())
+app.use(express.json({
+  verify: (req, res, buf) => { req.rawBody = buf }
+}))
 
 app.post('/webhook', async (req, res) => {
   try {
@@ -563,6 +589,46 @@ app.post('/webhook', async (req, res) => {
   } catch (err) {
     console.error('Webhook error:', err)
     res.status(500).json({ error: 'Internal error' })
+  }
+})
+
+app.post('/github-webhook', async (req, res) => {
+  try {
+    if (!verifyGithubSignature(req)) {
+      return res.status(401).json({ error: 'Invalid signature' })
+    }
+
+    const event = req.headers['x-github-event']
+    if (event !== 'push') {
+      return res.status(200).json({ ok: true, ignored: true })
+    }
+
+    res.status(200).json({ ok: true })
+
+    const payload = req.body
+    const commits = payload.commits ?? []
+    if (commits.length === 0) return
+
+    const commitLog = commits.map(c =>
+      `- ${c.message} (${c.added.length} added, ${c.modified.length} modified, ${c.removed.length} removed)`
+    ).join('\n')
+
+    const prompt = `Turn these git commits into video game patch notes. Generic, slightly corny "patch notes" tone — like something from a mobile game update, e.g. "Fixed an issue where X wasn't working" or "Improved Y for a smoother experience." Keep it simple, no technical jargon, no dev talk. Bullet points only, max 5 bullets. Don't mention git, commits, code, or GitHub at all — just describe what changed like a player would read it.\n\nCommits:\n${commitLog}`
+
+    const aiResponse = await geminiModel.generateContent(prompt)
+    const summary = aiResponse.response.text()
+
+    const embed = new EmbedBuilder()
+      .setTitle('🛠️ Patch Notes')
+      .setDescription(summary)
+      .setColor(0x3b82f6)
+      .setFooter({ text: 'gastosbot has been updated' })
+      .setTimestamp()
+
+    const channel = await client.channels.fetch(PATCHNOTES_CHANNEL_ID)
+    if (channel) await channel.send({ embeds: [embed] })
+  } catch (err) {
+    console.error('[github-webhook] error:', err.message)
   }
 })
 
