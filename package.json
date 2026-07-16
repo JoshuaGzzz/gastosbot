@@ -12,6 +12,7 @@
   "dependencies": {
     "@deepgram/sdk": "^5.4.0",
     "@discordjs/voice": "^0.19.2",
+    "@google/generative-ai": "^0.21.0",
     "@supabase/supabase-js": "^2.108.2",
     "discord.js": "^14.26.4",
     "express": "^4.18.2",
