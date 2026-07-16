@@ -4,7 +4,7 @@ const express = require('express')
 const crypto = require('crypto')
 const { GoogleGenerativeAI } = require('@google/generative-ai')
 const { startModeration, stopModeration, isModerating, getLeaderboard, loadWordlist } = require('./voiceModeration')
-const { playJoinSound, setJoinSoundEnabled } = require('./joinSound')
+const { playJoinSound, playLeaveSound, setJoinSoundEnabled } = require('./joinSound')
 const { startSabong, handleSabongButton, isSabongButton } = require('./sabong')
 
 const BOT_TOKEN = process.env.BOT_TOKEN
@@ -196,20 +196,27 @@ const client = new Client({
   ]
 })
 
-client.once('ready', async () => {
-  console.log(`Logged in as ${client.user.tag}`)
-  await registerCommands()
-})
-
 client.on('voiceStateUpdate', async (oldState, newState) => {
-  if (newState.member?.user?.bot) return
+  if (newState.member?.user?.bot ?? oldState.member?.user?.bot) return
   if (oldState.channelId === newState.channelId) return
-  if (!newState.channelId) return
 
-  try {
-    await playJoinSound(newState.channel)
-  } catch (err) {
-    console.error('[join-sound] error:', err.message)
+  // Someone joined a channel (or switched into one)
+  if (newState.channelId) {
+    try {
+      await playJoinSound(newState.channel)
+    } catch (err) {
+      console.error('[join-sound] error:', err.message)
+    }
+    return
+  }
+
+  // Someone left a channel entirely (didn't switch, actually disconnected)
+  if (oldState.channelId && !newState.channelId) {
+    try {
+      await playLeaveSound(oldState.channel)
+    } catch (err) {
+      console.error('[leave-sound] error:', err.message)
+    }
   }
 })
 
