@@ -6,6 +6,7 @@ const { GoogleGenerativeAI } = require('@google/generative-ai')
 const { startModeration, stopModeration, isModerating, getLeaderboard, loadWordlist } = require('./voiceModeration')
 const { playJoinSound, playLeaveSound, setJoinSoundEnabled } = require('./joinSound')
 const { startSabong, handleSabongButton, isSabongButton } = require('./sabong')
+const { linkPlayer, getLinkedPlayerByUid, postMatchSummary } = require('./apexStats')
 
 const BOT_TOKEN = process.env.BOT_TOKEN
 const CLIENT_ID = process.env.CLIENT_ID
@@ -14,6 +15,7 @@ const CHANNEL_ID = process.env.CHANNEL_ID
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_KEY
 const WEBHOOK_PORT = process.env.PORT || process.env.WEBHOOK_PORT || 3000
+const APEX_STATS_CHANNEL_ID = process.env.APEX_STATS_CHANNEL_ID
 
 const APEX_CHANNEL_ID = process.env.APEX_CHANNEL_ID
 const APEX_ROLE_ID = '1497126564297441301'
@@ -172,6 +174,25 @@ const commands = [
     .setName('badwords')
     .setDescription('Shows the list of flagged words'),
 
+  new SlashCommandBuilder()
+  .setName('apexlink')
+  .setDescription('Link your Apex Legends account for match tracking')
+  .addStringOption(opt =>
+    opt.setName('origin_name')
+      .setDescription('Your Apex/Origin username')
+      .setRequired(true)
+  )
+  .addStringOption(opt =>
+    opt.setName('platform')
+      .setDescription('Your platform')
+      .setRequired(true)
+      .addChoices(
+        { name: 'PC', value: 'PC' },
+        { name: 'PSN', value: 'PS4' },
+        { name: 'Xbox', value: 'X1' },
+      )
+  ),
+
 ].map(c => c.toJSON())
 
 async function registerCommands() {
@@ -259,6 +280,20 @@ client.on('interactionCreate', async interaction => {
   }
 
   if (!interaction.isChatInputCommand()) return
+
+  // ── /apexlink ───────────────────────────────────────────────────────────────
+if (interaction.commandName === 'apexlink') {
+  await interaction.deferReply({ ephemeral: true })
+  const originName = interaction.options.getString('origin_name')
+  const platform = interaction.options.getString('platform')
+
+  try {
+    await linkPlayer(supabase, interaction.user.id, originName, platform)
+    await interaction.editReply(`✅ Linked **${originName}** (${platform}). Your matches will now get tracked.`)
+  } catch (err) {
+    await interaction.editReply(`Failed to link account: ${err.message}`)
+  }
+}
 
   // ── /timer ──────────────────────────────────────────────────────────────────
   if (interaction.commandName === 'timer') {
@@ -641,6 +676,32 @@ app.post('/github-webhook', async (req, res) => {
     if (channel) await channel.send({ embeds: [embed] })
   } catch (err) {
     console.error('[github-webhook] error:', err.message)
+  }
+})
+
+app.post('/apex-webhook', async (req, res) => {
+  try {
+    res.status(200).json({ ok: true })
+
+    const payload = req.body
+    // NOTE: verify these field names against the real payload once you see one land —
+    // apexlegendsapi.com's webhook shape isn't fully documented, log payload first.
+    const uid = payload.uid
+    const place = payload.placement ?? payload.place
+    const kills = payload.kills ?? 0
+    const assists = payload.assists ?? 0
+    const damage = payload.damage ?? payload.damageDealt ?? 0
+
+    console.log('[apex-webhook] raw payload:', JSON.stringify(payload))
+
+    if (!uid || !place) return
+
+    const player = await getLinkedPlayerByUid(supabase, uid)
+    if (!player) return
+
+    await postMatchSummary(client, APEX_STATS_CHANNEL_ID, geminiModel, player, { place, kills, assists, damage })
+  } catch (err) {
+    console.error('[apex-webhook] error:', err.message)
   }
 })
 
