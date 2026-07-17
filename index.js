@@ -249,6 +249,34 @@ client.on('presenceUpdate', async (oldPresence, newPresence) => {
   }
 })
 
+// ── Wuthering Waves presence roast ─────────────────────────────────────────────
+
+const WUWA_ROASTS = [
+  "nagoopen na naman ng gacha, saan na yung pera mo",
+  "another Wuthering Waves session, another reason your bank account is crying",
+  "bro really chose anime waifus over touching grass again",
+  "gacha addict spotted, rolling for the 47th time this week",
+]
+
+client.on('presenceUpdate', async (oldPresence, newPresence) => {
+  const wasPlayingWuwa = oldPresence?.activities?.some(a => a.name === 'Wuthering Waves')
+  const isPlayingWuwa = newPresence?.activities?.some(a => a.name === 'Wuthering Waves')
+
+  if (!wasPlayingWuwa && isPlayingWuwa) {
+    try {
+      const channel = await client.channels.fetch(APEX_CHANNEL_ID)
+      if (!channel) return
+      const line = WUWA_ROASTS[Math.floor(Math.random() * WUWA_ROASTS.length)]
+      await channel.send({
+        content: `${newPresence.member} ${line}`,
+        allowedMentions: { parse: ['users'] }
+      })
+    } catch (err) {
+      console.error('[wuwa-roast] error:', err.message)
+    }
+  }
+})
+
 client.on('interactionCreate', async interaction => {
   if (interaction.isButton()) {
     if (isSabongButton(interaction.customId)) {
@@ -258,6 +286,8 @@ client.on('interactionCreate', async interaction => {
   }
 
   if (!interaction.isChatInputCommand()) return
+
+  
 
   // ── /apexlink ───────────────────────────────────────────────────────────────
 if (interaction.commandName === 'apexlink') {
