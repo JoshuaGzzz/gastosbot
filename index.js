@@ -4,7 +4,7 @@ const express = require('express')
 const crypto = require('crypto')
 const { GoogleGenerativeAI } = require('@google/generative-ai')
 const { startModeration, stopModeration, isModerating, getLeaderboard, loadWordlist } = require('./voiceModeration')
-const { playJoinSound, playLeaveSound, setJoinSoundEnabled } = require('./joinSound')
+const { setJoinSoundEnabled } = require('./joinSound')
 const { startSabong, handleSabongButton, isSabongButton } = require('./sabong')
 const { linkPlayer, getLinkedPlayerByUid, postMatchSummary } = require('./apexStats')
 
@@ -222,31 +222,7 @@ client.once('ready', async () => {
   await registerCommands()
 })
 
-client.on('voiceStateUpdate', async (oldState, newState) => {
-  if (newState.member?.user?.bot ?? oldState.member?.user?.bot) return
-  if (oldState.channelId === newState.channelId) return
 
-  // True join only — they weren't in any channel before
-  if (!oldState.channelId && newState.channelId) {
-    try {
-      await playJoinSound(newState.channel)
-    } catch (err) {
-      console.error('[join-sound] error:', err.message)
-    }
-    return
-  }
-
-  // True leave only — they're not in any channel now
-  if (oldState.channelId && !newState.channelId) {
-    try {
-      await playLeaveSound(oldState.channel)
-    } catch (err) {
-      console.error('[leave-sound] error:', err.message)
-    }
-  }
-
-  // Channel switches are ignored entirely — no sound, no follow
-})
 
 // ── Apex Legends presence roast ────────────────────────────────────────────────
 
