@@ -258,22 +258,28 @@ async function startModeration(voiceChannel, textChannel) {
   await Promise.all(currentMembers.map(m => openUserConnections(guild.id, m.id, onMatch)))
 
   // Track members joining / leaving this specific channel
-  const voiceStateHandler = async (oldState, newState) => {
-    if (oldState.guild.id !== guild.id) return
-    if (newState.member?.user?.bot) return
+const voiceStateHandler = async (oldState, newState) => {
+  if (oldState.guild.id !== guild.id) return
+  if (newState.member?.user?.bot) return
 
-    const joinedThisChannel = newState.channelId === voiceChannel.id && oldState.channelId !== voiceChannel.id
-    const leftThisChannel = oldState.channelId === voiceChannel.id && newState.channelId !== voiceChannel.id
+  const joinedThisChannel = newState.channelId === voiceChannel.id && oldState.channelId !== voiceChannel.id
+  const leftThisChannel = oldState.channelId === voiceChannel.id && newState.channelId !== voiceChannel.id
 
-    if (joinedThisChannel) {
-      console.log(`[voice-mod] ${newState.id} joined — opening Deepgram connections`)
-      await openUserConnections(guild.id, newState.id, onMatch)
-    }
-    if (leftThisChannel) {
-      console.log(`[voice-mod] ${newState.id} left — closing Deepgram connections`)
-      closeUserConnections(guild.id, newState.id)
+  if (joinedThisChannel) {
+    console.log(`[voice-mod] ${newState.id} joined — opening Deepgram connections`)
+    await openUserConnections(guild.id, newState.id, onMatch)
+    if (isJoinSoundEnabled(guild.id)) {
+      playJoinSound(connection).catch(err => console.error('[join-sound] error:', err.message))
     }
   }
+  if (leftThisChannel) {
+    console.log(`[voice-mod] ${newState.id} left — closing Deepgram connections`)
+    closeUserConnections(guild.id, newState.id)
+    if (isJoinSoundEnabled(guild.id)) {
+      playLeaveSound(connection).catch(err => console.error('[leave-sound] error:', err.message))
+    }
+  }
+}
 
   guild.client.on('voiceStateUpdate', voiceStateHandler)
   session.voiceStateHandler = voiceStateHandler
