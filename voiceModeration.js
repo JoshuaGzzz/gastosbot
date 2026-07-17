@@ -11,6 +11,7 @@ const {
 const prism = require('prism-media')
 const { DeepgramClient } = require('@deepgram/sdk')
 const { createClient: createSupabaseClient } = require('@supabase/supabase-js')
+const { playJoinSound, playLeaveSound, isJoinSoundEnabled } = require('./joinSound')
 
 const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY
 const deepgram = DEEPGRAM_API_KEY ? new DeepgramClient({ apiKey: DEEPGRAM_API_KEY }) : null
