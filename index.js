@@ -226,8 +226,8 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
   if (newState.member?.user?.bot ?? oldState.member?.user?.bot) return
   if (oldState.channelId === newState.channelId) return
 
-  // Someone joined a channel (or switched into one)
-  if (newState.channelId) {
+  // True join only — they weren't in any channel before
+  if (!oldState.channelId && newState.channelId) {
     try {
       await playJoinSound(newState.channel)
     } catch (err) {
@@ -236,7 +236,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     return
   }
 
-  // Someone left a channel entirely (didn't switch, actually disconnected)
+  // True leave only — they're not in any channel now
   if (oldState.channelId && !newState.channelId) {
     try {
       await playLeaveSound(oldState.channel)
@@ -244,6 +244,8 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
       console.error('[leave-sound] error:', err.message)
     }
   }
+
+  // Channel switches are ignored entirely — no sound, no follow
 })
 
 // ── Apex Legends presence roast ────────────────────────────────────────────────
