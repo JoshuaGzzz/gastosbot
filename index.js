@@ -7,6 +7,7 @@ const { startModeration, stopModeration, isModerating, getLeaderboard, loadWordl
 const { setJoinSoundEnabled } = require('./joinSound')
 const { startSabong, handleSabongButton, isSabongButton } = require('./sabong')
 const { linkPlayer, getLinkedPlayerByUid, postMatchSummary } = require('./apexStats')
+const { handleGachaPresence, isGachaGame, GACHA_VICTIM_ID } = require('./gachaRoast')
 
 const BOT_TOKEN = process.env.BOT_TOKEN
 const CLIENT_ID = process.env.CLIENT_ID
@@ -230,7 +231,20 @@ const APEX_ROASTS = [
   "NAGAAPEX NA OPEN OPEN OPEN",
 ]
 
+const WUWA_ROASTS = [
+  "nagoopen na naman ng gacha, saan na yung pera mo",
+  "another Wuthering Waves session, another reason your bank account is crying",
+  "bro really chose anime waifus over touching grass again",
+  "gacha addict spotted, rolling for the 47th time this week",
+]
+
 client.on('presenceUpdate', async (oldPresence, newPresence) => {
+  // ── Gacha addict roast (targets specific user across 4 gacha games) ──────
+  // This handles Genshin, ZZZ, Wuwa, and HSR for the victim.
+  // If it's the victim opening a gacha, the gacha module handles it entirely.
+  const gachaHandled = await handleGachaPresence(oldPresence, newPresence, client, geminiModel, APEX_CHANNEL_ID)
+
+  // ── Apex Legends roast (for everyone) ────────────────────────────────────
   const wasPlayingApex = oldPresence?.activities?.some(a => a.name === 'Apex Legends')
   const isPlayingApex = newPresence?.activities?.some(a => a.name === 'Apex Legends')
 
@@ -247,32 +261,25 @@ client.on('presenceUpdate', async (oldPresence, newPresence) => {
       console.error('[apex-roast] error:', err.message)
     }
   }
-})
 
-// ── Wuthering Waves presence roast ─────────────────────────────────────────────
+  // ── Wuthering Waves roast (for everyone EXCEPT the gacha victim) ─────────
+  // The victim's Wuwa roasts are handled by the gacha module above.
+  if (!gachaHandled) {
+    const wasPlayingWuwa = oldPresence?.activities?.some(a => a.name === 'Wuthering Waves')
+    const isPlayingWuwa = newPresence?.activities?.some(a => a.name === 'Wuthering Waves')
 
-const WUWA_ROASTS = [
-  "nagoopen na naman ng gacha, saan na yung pera mo",
-  "another Wuthering Waves session, another reason your bank account is crying",
-  "bro really chose anime waifus over touching grass again",
-  "gacha addict spotted, rolling for the 47th time this week",
-]
-
-client.on('presenceUpdate', async (oldPresence, newPresence) => {
-  const wasPlayingWuwa = oldPresence?.activities?.some(a => a.name === 'Wuthering Waves')
-  const isPlayingWuwa = newPresence?.activities?.some(a => a.name === 'Wuthering Waves')
-
-  if (!wasPlayingWuwa && isPlayingWuwa) {
-    try {
-      const channel = await client.channels.fetch(APEX_CHANNEL_ID)
-      if (!channel) return
-      const line = WUWA_ROASTS[Math.floor(Math.random() * WUWA_ROASTS.length)]
-      await channel.send({
-        content: `${newPresence.member} ${line}`,
-        allowedMentions: { parse: ['users'] }
-      })
-    } catch (err) {
-      console.error('[wuwa-roast] error:', err.message)
+    if (!wasPlayingWuwa && isPlayingWuwa) {
+      try {
+        const channel = await client.channels.fetch(APEX_CHANNEL_ID)
+        if (!channel) return
+        const line = WUWA_ROASTS[Math.floor(Math.random() * WUWA_ROASTS.length)]
+        await channel.send({
+          content: `${newPresence.member} ${line}`,
+          allowedMentions: { parse: ['users'] }
+        })
+      } catch (err) {
+        console.error('[wuwa-roast] error:', err.message)
+      }
     }
   }
 })
