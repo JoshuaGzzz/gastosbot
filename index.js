@@ -77,6 +77,43 @@ function getLongestStreak(records, currentStartTime) {
   return Math.max(...[...pastStreaks, currentMs])
 }
 
+function aggregateBobbleStats(matches) {
+  const stats = {} // discord user id -> { wins, losses, draws, played, ownGoals }
+  const ensure = id => {
+    if (!stats[id]) stats[id] = { wins: 0, losses: 0, draws: 0, played: 0, ownGoals: 0 }
+    return stats[id]
+  }
+
+  for (const m of matches) {
+    const team1 = m.team1_players || []
+    const team2 = m.team2_players || []
+    const result = m.team1_score === m.team2_score
+      ? 'draw'
+      : (m.team1_score > m.team2_score ? 'team1' : 'team2')
+
+    for (const id of team1) {
+      const s = ensure(id)
+      s.played++
+      if (result === 'draw') s.draws++
+      else if (result === 'team1') s.wins++
+      else s.losses++
+    }
+    for (const id of team2) {
+      const s = ensure(id)
+      s.played++
+      if (result === 'draw') s.draws++
+      else if (result === 'team2') s.wins++
+      else s.losses++
+    }
+    if (m.own_goal_by) {
+      const s = ensure(m.own_goal_by)
+      s.ownGoals += m.own_goal_count || 1
+    }
+  }
+
+  return stats
+}
+
 // ── Register slash commands ───────────────────────────────────────────────────
 
 const commands = [
@@ -138,6 +175,26 @@ const commands = [
   new SlashCommandBuilder()
     .setName('scream')
     .setDescription("Manually announce Joseph's latest mine from the website"),
+
+  new SlashCommandBuilder()
+    .setName('bobble')
+    .setDescription('Log a Bobble League match result')
+    .addUserOption(opt => opt.setName('team1_player1').setDescription('Team 1 player').setRequired(true))
+    .addUserOption(opt => opt.setName('team2_player1').setDescription('Team 2 player').setRequired(true))
+    .addIntegerOption(opt => opt.setName('team1_score').setDescription("Team 1's final score").setRequired(true).setMinValue(0))
+    .addIntegerOption(opt => opt.setName('team2_score').setDescription("Team 2's final score").setRequired(true).setMinValue(0))
+    .addUserOption(opt => opt.setName('team1_player2').setDescription('Team 1 player (optional)').setRequired(false))
+    .addUserOption(opt => opt.setName('team1_player3').setDescription('Team 1 player (optional)').setRequired(false))
+    .addUserOption(opt => opt.setName('team1_player4').setDescription('Team 1 player (optional)').setRequired(false))
+    .addUserOption(opt => opt.setName('team2_player2').setDescription('Team 2 player (optional)').setRequired(false))
+    .addUserOption(opt => opt.setName('team2_player3').setDescription('Team 2 player (optional)').setRequired(false))
+    .addUserOption(opt => opt.setName('team2_player4').setDescription('Team 2 player (optional)').setRequired(false))
+    .addUserOption(opt => opt.setName('own_goal_by').setDescription('Who scored an own goal? (optional)').setRequired(false))
+    .addIntegerOption(opt => opt.setName('own_goal_count').setDescription('How many own goals (default 1)').setRequired(false).setMinValue(1)),
+
+  new SlashCommandBuilder()
+    .setName('bobbleboard')
+    .setDescription('Show the Bobble League leaderboard (and the Own Goal Hall of Shame)'),
 
   new SlashCommandBuilder()
     .setName('modjoin')
@@ -479,6 +536,128 @@ if (interaction.commandName === 'apexlink') {
     const latest = records[0]
     await screamInChannel(latest)
     await interaction.editReply('✅ Screamed in channel.')
+  }
+
+  // ── /bobble ─────────────────────────────────────────────────────────────────
+  if (interaction.commandName === 'bobble') {
+    await interaction.deferReply()
+
+    const t1p1 = interaction.options.getUser('team1_player1')
+    const t2p1 = interaction.options.getUser('team2_player1')
+    const t1score = interaction.options.getInteger('team1_score')
+    const t2score = interaction.options.getInteger('team2_score')
+    const t1p2 = interaction.options.getUser('team1_player2')
+    const t1p3 = interaction.options.getUser('team1_player3')
+    const t1p4 = interaction.options.getUser('team1_player4')
+    const t2p2 = interaction.options.getUser('team2_player2')
+    const t2p3 = interaction.options.getUser('team2_player3')
+    const t2p4 = interaction.options.getUser('team2_player4')
+    const ownGoalUser = interaction.options.getUser('own_goal_by')
+    const ownGoalCount = interaction.options.getInteger('own_goal_count') ?? (ownGoalUser ? 1 : 0)
+
+    const team1Players = [t1p1, t1p2, t1p3, t1p4].filter(Boolean).map(u => u.id)
+    const team2Players = [t2p1, t2p2, t2p3, t2p4].filter(Boolean).map(u => u.id)
+
+    const overlap = team1Players.filter(id => team2Players.includes(id))
+    if (overlap.length > 0) {
+      return interaction.editReply("Same player can't be on both teams.")
+    }
+
+    const { error } = await supabase.from('bobble_matches').insert({
+      team1_players: team1Players,
+      team2_players: team2Players,
+      team1_score: t1score,
+      team2_score: t2score,
+      own_goal_by: ownGoalUser?.id ?? null,
+      own_goal_count: ownGoalCount,
+      logged_by: interaction.user.id,
+    })
+
+    if (error) {
+      console.error('bobble insert error:', error)
+      return interaction.editReply('Failed to log that match. Try again.')
+    }
+
+    const result = t1score === t2score ? 'draw' : (t1score > t2score ? 'team1' : 'team2')
+    const team1Names = team1Players.map(id => `<@${id}>`).join(', ')
+    const team2Names = team2Players.map(id => `<@${id}>`).join(', ')
+
+    const embed = new EmbedBuilder()
+      .setTitle('⚽ Bobble League Match Logged')
+      .addFields(
+        { name: 'Team 1', value: `${team1Names}\n**${t1score}** goals`, inline: true },
+        { name: 'Team 2', value: `${team2Names}\n**${t2score}** goals`, inline: true },
+        { name: 'Result', value: result === 'draw' ? "It's a draw." : `🏆 Team ${result === 'team1' ? '1' : '2'} wins!`, inline: false },
+      )
+
+    if (ownGoalUser) {
+      embed.addFields({
+        name: '🤡 Own Goal',
+        value: `<@${ownGoalUser.id}> scored ${ownGoalCount} own goal${ownGoalCount === 1 ? '' : 's'} for the other team.`,
+        inline: false
+      })
+    }
+
+    embed
+      .setColor(result === 'draw' ? 0x94a3b8 : 0x22c55e)
+      .setFooter({ text: `Logged by ${interaction.user.tag}` })
+      .setTimestamp()
+
+    const channel = await client.channels.fetch(CHANNEL_ID)
+    if (channel) await channel.send({ embeds: [embed] })
+
+    await interaction.editReply({ embeds: [embed] })
+  }
+
+  // ── /bobbleboard ────────────────────────────────────────────────────────────
+  if (interaction.commandName === 'bobbleboard') {
+    await interaction.deferReply()
+
+    const { data: matches } = await supabase
+      .from('bobble_matches')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (!matches || matches.length === 0) {
+      return interaction.editReply('No Bobble League matches logged yet. Use `/bobble` after your next match!')
+    }
+
+    const stats = aggregateBobbleStats(matches)
+    const entries = Object.entries(stats)
+
+    const winBoard = [...entries]
+      .sort((a, b) => b[1].wins - a[1].wins || b[1].played - a[1].played)
+      .slice(0, 10)
+
+    const ownGoalBoard = entries
+      .filter(([, s]) => s.ownGoals > 0)
+      .sort((a, b) => b[1].ownGoals - a[1].ownGoals)
+      .slice(0, 10)
+
+    const medals = ['🥇', '🥈', '🥉']
+    const winLines = winBoard.length
+      ? winBoard.map(([id, s], i) =>
+          `${medals[i] ?? `${i + 1}.`} <@${id}> — **${s.wins}W** ${s.losses}L ${s.draws}D (${s.played} played)`
+        ).join('\n')
+      : 'No matches yet.'
+
+    const ownGoalLines = ownGoalBoard.length
+      ? ownGoalBoard.map(([id, s], i) =>
+          `${i + 1}. <@${id}> — **${s.ownGoals}** own goal${s.ownGoals === 1 ? '' : 's'} 🤡`
+        ).join('\n')
+      : 'Nobody has own-goaled yet. Suspicious.'
+
+    const embed = new EmbedBuilder()
+      .setTitle('⚽ Bobble League Leaderboard')
+      .addFields(
+        { name: '🏆 Top Players', value: winLines, inline: false },
+        { name: '🤡 Own Goal Hall of Shame', value: ownGoalLines, inline: false },
+      )
+      .setColor(0x00e5ff)
+      .setFooter({ text: `${matches.length} match${matches.length === 1 ? '' : 'es'} logged` })
+      .setTimestamp()
+
+    await interaction.editReply({ embeds: [embed] })
   }
 
   // ── /modjoin ────────────────────────────────────────────────────────────────
