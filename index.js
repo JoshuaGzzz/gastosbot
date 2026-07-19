@@ -82,14 +82,14 @@ function getLongestStreak(records, currentStartTime) {
 const commands = [
   new SlashCommandBuilder()
     .setName('timer')
-    .setDescription("Check Joseph's current no-spend streak"),
+    .setDescription('Check how long since Joseph last typed "mine"'),
 
   new SlashCommandBuilder()
-    .setName('reset')
-    .setDescription("Reset Joseph's timer (he spent money)")
+    .setName('mine')
+    .setDescription('Log that Joseph typed "mine" again (resets the timer)')
     .addStringOption(opt =>
       opt.setName('category')
-        .setDescription('What did he spend on?')
+        .setDescription('What did he mine?')
         .setRequired(true)
         .addChoices(
           ...KPOP_CATEGORIES.filter(c => c !== 'Custom').map(c => ({ name: c, value: c })),
@@ -98,7 +98,7 @@ const commands = [
     )
     .addStringOption(opt =>
       opt.setName('reason')
-        .setDescription('Why did Joseph spend money?')
+        .setDescription('What did Joseph mine this time?')
         .setRequired(true)
     )
     .addStringOption(opt =>
@@ -109,7 +109,7 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName('bet')
-    .setDescription('Place a bet on when Joseph will break next')
+    .setDescription('Place a bet on when Joseph mines next')
     .addStringOption(opt =>
       opt.setName('name')
         .setDescription('Your name')
@@ -137,7 +137,7 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName('scream')
-    .setDescription('Manually announce the latest reset from the website'),
+    .setDescription("Manually announce Joseph's latest mine from the website"),
 
   new SlashCommandBuilder()
     .setName('modjoin')
@@ -323,12 +323,12 @@ if (interaction.commandName === 'apexlink') {
     const isRecord = elapsed >= longestMs
 
     const embed = new EmbedBuilder()
-      .setTitle('Joseph Gastos Tracker')
-      .setDescription('Joseph has not spent money since:')
+      .setTitle('MINE. Tracker')
+      .setDescription('Joseph has not typed "mine" since:')
       .addFields(
         { name: '⏱ Current Streak', value: `\`${formatElapsed(elapsed)}\``, inline: false },
         { name: '🏆 Longest Streak', value: formatStreakDuration(longestMs), inline: true },
-        { name: '💀 Total Resets', value: String(records?.length ?? 0), inline: true },
+        { name: '✋ Total Mines', value: String(records?.length ?? 0), inline: true },
       )
       .setColor(isRecord ? 0x22c55e : 0xffffff)
       .setFooter({ text: isRecord ? '🏆 Current streak is the best ever!' : 'ACCOUNTABILITY IS FOREVER' })
@@ -337,8 +337,8 @@ if (interaction.commandName === 'apexlink') {
     await interaction.editReply({ embeds: [embed] })
   }
 
-  // ── /reset ──────────────────────────────────────────────────────────────────
-  if (interaction.commandName === 'reset') {
+  // ── /mine ───────────────────────────────────────────────────────────────────
+  if (interaction.commandName === 'mine') {
     await interaction.deferReply()
 
     const selectedCategory = interaction.options.getString('category')
@@ -376,15 +376,15 @@ if (interaction.commandName === 'apexlink') {
     ])
 
     const embed = new EmbedBuilder()
-      .setTitle(wasRecord ? '🏆 Joseph broke his record AND his wallet.' : '⚠️ Joseph has fallen.')
+      .setTitle(wasRecord ? '🏆 Joseph broke his record AND mined again.' : '✋ Joseph typed "mine" again.')
       .addFields(
         { name: '📁 Category', value: finalCategory, inline: true },
         { name: '⏱ Streak Was', value: formatStreakDuration(streakMs), inline: true },
-        { name: '💬 Reason', value: reason, inline: false },
-        { name: '👤 Reset by', value: `<@${interaction.user.id}>`, inline: true },
+        { name: '💬 What he mined', value: reason, inline: false },
+        { name: '👤 Logged by', value: `<@${interaction.user.id}>`, inline: true },
       )
       .setColor(wasRecord ? 0xfbbf24 : 0xef4444)
-      .setFooter({ text: 'Timer has been reset. The suffering begins again.' })
+      .setFooter({ text: 'Timer has been reset. The mining resumes.' })
       .setTimestamp()
 
     const channel = await client.channels.fetch(CHANNEL_ID)
@@ -416,11 +416,11 @@ if (interaction.commandName === 'apexlink') {
 
     if (error) return interaction.editReply('Failed to save bet. Try again.')
 
-    await interaction.editReply(`✅ Bet placed! **${name}** bets ₱${amount.toLocaleString()} that Joseph breaks on **${dateStr}**.`)
+    await interaction.editReply(`✅ Bet placed! **${name}** bets ₱${amount.toLocaleString()} that Joseph mines on **${dateStr}**.`)
 
     const channel = await client.channels.fetch(CHANNEL_ID)
     if (channel) {
-      await channel.send(`🎲 **${name}** placed a bet of ₱${amount.toLocaleString()} that Joseph breaks on **${dateStr}**!`)
+      await channel.send(`🎲 **${name}** placed a bet of ₱${amount.toLocaleString()} that Joseph mines on **${dateStr}**!`)
     }
   }
 
@@ -450,14 +450,14 @@ if (interaction.commandName === 'apexlink') {
     }).join('\n')
 
     const embed = new EmbedBuilder()
-      .setTitle('🎲 Betting Pool')
+      .setTitle('🎲 Prediction Pool')
       .setDescription(lines)
       .addFields(
         { name: '💰 Total Pot', value: `₱${totalPot.toLocaleString()}`, inline: true },
         { name: '👑 Currently Winning', value: closest.name, inline: true },
       )
       .setColor(0x8b5cf6)
-      .setFooter({ text: 'Closest date to today\'s reset wins the pot' })
+      .setFooter({ text: 'Closest date to Joseph\'s next mine wins the pot' })
       .setTimestamp()
 
     await interaction.editReply({ embeds: [embed] })
@@ -473,7 +473,7 @@ if (interaction.commandName === 'apexlink') {
       .order('created_at', { ascending: false })
 
     if (!records || records.length === 0) {
-      return interaction.editReply('No spending records found.')
+      return interaction.editReply('No mines found yet.')
     }
 
     const latest = records[0]
@@ -596,15 +596,15 @@ async function screamInChannel(record) {
     const reason = record.reason ?? '???'
 
     const embed = new EmbedBuilder()
-      .setTitle(wasRecord ? '🏆 HE BROKE HIS RECORD AND HIS WALLET (via website)' : '🚨 JOSEPH SPENT MONEY (via website)')
-      .setDescription('The website reset button has been pressed. He has fallen.')
+      .setTitle(wasRecord ? '🏆 HE BROKE HIS RECORD AND MINED AGAIN (via website)' : '🚨 JOSEPH MINED AGAIN (via website)')
+      .setDescription('Joseph typed "mine" on the website. He has fallen.')
       .addFields(
         { name: '📁 Category', value: category, inline: true },
         { name: '⏱ Streak Was', value: streakMs > 0 ? formatStreakDuration(streakMs) : 'Unknown', inline: true },
-        { name: '💬 Reason', value: reason, inline: false },
+        { name: '💬 What he mined', value: reason, inline: false },
       )
       .setColor(wasRecord ? 0xfbbf24 : 0xef4444)
-      .setFooter({ text: 'Timer has been reset. The suffering begins again.' })
+      .setFooter({ text: 'Timer has been reset. The mining resumes.' })
       .setTimestamp()
 
     const channel = await client.channels.fetch(CHANNEL_ID)
