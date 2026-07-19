@@ -1,6 +1,6 @@
 # 🤡 gastosbot — brought to you by **OKE BAKLA**
 
-A Discord bot built to publicly track, roast, and gamble on Joseph's spending habits — powered by Supabase, voice moderation, and the unmatched chaos energy of **OKE BAKLA**.
+A Discord bot built to publicly track, roast, and gamble on Joseph's mining habits — powered by Supabase, voice moderation, and the unmatched chaos energy of **OKE BAKLA**.
 
 > **OKE BAKLA** logs in, **OKE BAKLA** registers the commands, **OKE BAKLA** watches the server 24/7. This is the **OKE BAKLA** cinematic universe.
 
@@ -8,15 +8,15 @@ A Discord bot built to publicly track, roast, and gamble on Joseph's spending ha
 
 ## ✨ Features
 
-### 💸 Gastos (Spending) Tracker
-**OKE BAKLA** keeps a running no-spend streak timer for Joseph.
-- `/timer` — check the current streak
-- `/reset` — log a new spending incident (category + reason), **OKE BAKLA** announces it in the channel
-- `/scream` — manually re-announce the latest reset from the website
-- Also listens for a Supabase webhook (`/webhook`) so **OKE BAKLA** screams the moment the *website* reset button gets pressed
+### ✋ MINE Tracker
+**OKE BAKLA** keeps a running no-mine streak timer for Joseph.
+- `/timer` — check how long it's been since Joseph last typed "mine"
+- `/mine` — log a new mine (category + reason), **OKE BAKLA** announces it in the channel
+- `/scream` — manually re-announce the latest mine from the website
+- Also listens for a Supabase webhook (`/webhook`) so **OKE BAKLA** screams the moment the *website's* mine button gets pressed
 
 ### 🎲 Betting Pool
-- `/bet` — place a bet on when Joseph breaks next
+- `/bet` — place a bet on when Joseph mines next
 - `/bets` — **OKE BAKLA** shows the live leaderboard and current pot
 
 ### 🐔 Sabong
@@ -56,7 +56,7 @@ Copy `.env.example` to `.env` (or set these directly in Railway → Variables) a
 | `BOT_TOKEN` | Discord bot token |
 | `CLIENT_ID` | Discord application (client) ID |
 | `GUILD_ID` | The server (guild) ID **OKE BAKLA** operates in |
-| `CHANNEL_ID` | Main channel for gastos announcements |
+| `CHANNEL_ID` | Main channel for mine announcements |
 | `SUPABASE_URL` | Supabase project URL |
 | `SUPABASE_KEY` | Supabase publishable/anon key |
 | `APEX_CHANNEL_ID` | Channel where **OKE BAKLA** posts Apex roasts |
