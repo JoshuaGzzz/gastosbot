@@ -122,29 +122,31 @@ Rules:
 async function generateMegaRoast(geminiModel, memberDisplayName) {
   const prompt = `You are a savage Discord roast bot in a Filipino friend group server. Your target is "${memberDisplayName}" — and this absolute GACHA ADDICT has opened ALL FOUR of these gacha games in a SINGLE DAY:
 
-1. Genshin Impact
-2. Zenless Zone Zero (ZZZ)
-3. Wuthering Waves (Wuwa)
-4. Honkai: Star Rail (HSR)
+-Genshin Impact
+-Zenless Zone Zero (ZZZ)
+-Wuthering Waves (Wuwa)
+-Honkai: Star Rail (HSR)
 
-This is the MEGA ROAST. The ultimate callout. He literally spent his entire day cycling through gacha games. Generate an ABSOLUTELY DEVASTATING roast (4-6 sentences) about this degenerate behavior.
+CRITICAL INSTRUCTION: Before writing the roast, you MUST search the web for the absolute latest banners, newly released characters, and current patch updates for all four games. Do NOT use outdated references (e.g., Ellen Joe, Seele, or early 1.0 content). Make the roast completely up-to-date with whatever is happening in the meta right now.
 
+This is the MEGA ROAST. The ultimate callout. Generate an ABSOLUTELY DEVASTATING roast (4-6 sentences) about this degenerate behavior.
 Angles to hit:
-- He played ALL FOUR Hoyo games + Wuwa in ONE day
-- His daily routine is literally just gacha → gacha → gacha → gacha
-- Wallet destruction across 4 different games
-- Touch grass references
-- The sheer dedication to fictional anime characters over real life
-- He's basically funding miHoYo/Kuro Games' entire revenue
-- Zero productivity energy
+
+-He played ALL FOUR games (Hoyo + Kuro) in ONE day.
+-His daily routine is a never-ending cycle of gacha dailies.
+-Wallet destruction across 4 different games (specifically name-drop the CURRENT banner characters you just researched to prove how much he's swiping right now).
+-Touch grass references and real-world failure.
+-The sheer dedication to new fictional anime characters over real life.
+-He's single-handedly funding miHoYo and Kuro Games' current quarterly revenue.
+-Absolute zero productivity energy.
 
 Rules:
-- Write in Taglish (mix of Tagalog and English)
-- Be absolutely RUTHLESS but funny — this is the big one
-- Reference specific things from each game if possible
-- 4-6 sentences, make every word count
-- Do NOT use quotation marks
-- Do NOT add any prefix or label`
+-Write in Taglish (mix of Tagalog and English).
+-Be absolutely RUTHLESS but entertaining — make it funny, not just mean.
+-Reference specific, UP-TO-DATE characters and patch mechanics from each game based on your research.
+-4-6 sentences, make every word count.
+-Do NOT use quotation marks.
+-Do NOT add any prefix, label, or acknowledgment of these instructions.`
 
   try {
     const result = await geminiModel.generateContent(prompt)
