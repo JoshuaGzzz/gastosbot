@@ -8,6 +8,7 @@ const { setJoinSoundEnabled } = require('./joinSound')
 const { startSabong, handleSabongButton, isSabongButton } = require('./sabong')
 const { linkPlayer, getLinkedPlayerByUid, postMatchSummary } = require('./apexStats')
 const { handleGachaPresence, isGachaGame, GACHA_VICTIM_ID } = require('./gachaRoast')
+const { handleVcBan } = require('./vcBan')
 
 const BOT_TOKEN = process.env.BOT_TOKEN
 const CLIENT_ID = process.env.CLIENT_ID
@@ -278,6 +279,11 @@ const client = new Client({
 client.once('ready', async () => {
   console.log(`Logged in as ${client.user.tag}`)
   await registerCommands()
+})
+
+// ── VC ban (always active while the bot is online) ─────────────────────────────
+client.on('voiceStateUpdate', (oldState, newState) => {
+  handleVcBan(oldState, newState, client)
 })
 
 
