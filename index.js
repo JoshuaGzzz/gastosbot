@@ -30,6 +30,15 @@ const geminiModel = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' }
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
 
 const KPOP_CATEGORIES = [
+  'Food',
+  'Coffee',
+  'Drinks',
+  'Gaming',
+  'Clothes',
+  'Shopping',
+  'Transport',
+  'Bills',
+  'Subscriptions',
   'Albums',
   'Merch',
   'Concerts / Events',
@@ -69,11 +78,21 @@ function formatElapsed(ms) {
   return `${pad(months)}mo : ${pad(weeks)}w : ${pad(days)}d : ${pad(hours)}h : ${pad(minutes)}m : ${pad(seconds)}s`
 }
 
+// `timestamp` is a display string ("September 29, 2026 at 07:41:20 PM") that
+// new Date() can't parse (" at " => NaN). Prefer created_at (ISO) instead.
+function getRecordEndMs(record) {
+  if (record.created_at) {
+    const ms = new Date(record.created_at).getTime()
+    if (!Number.isNaN(ms)) return ms
+  }
+  return new Date(String(record.timestamp).replace(' at ', ' ')).getTime()
+}
+
 function getLongestStreak(records, currentStartTime) {
   const currentMs = Date.now() - currentStartTime
   const pastStreaks = records
     .filter(r => r.prev_start_time != null)
-    .map(r => new Date(r.timestamp).getTime() - r.prev_start_time)
+    .map(r => getRecordEndMs(r) - r.prev_start_time)
     .filter(ms => ms > 0)
   return Math.max(...[...pastStreaks, currentMs])
 }
@@ -769,7 +788,7 @@ async function screamInChannel(record) {
 
     const prevStartTime = record.prev_start_time
     const streakMs = prevStartTime
-      ? new Date(record.timestamp).getTime() - prevStartTime
+      ? getRecordEndMs(record) - prevStartTime
       : 0
 
     const longestMs = records?.length && prevStartTime
