@@ -4,7 +4,7 @@
 // The bot does NOT need to be in a VC. It only needs to be online and have the
 // "Move Members" permission in the guild.
 
-const VC_BAN_USER_ID = ''
+const VC_BAN_USER_ID = '749534042017234974'
 const VC_BAN_CHANNEL_ID = '1298186869342998530'
 
 async function handleVcBan(oldState, newState, client) {
